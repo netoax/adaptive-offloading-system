@@ -1,0 +1,16 @@
+{
+  "vertices": [
+    {
+      "id": "cbc357ccb763df2852fee8c4fc7d55f2",
+      "name": "Source: mqtt: main-data-source -\u003e map-main-data",
+      "metrics": {
+        "isBackPressured": false,
+        "numRecordsInPerSecond": 0.0,
+        "numRecordsOutPerSecond": 32.266666666666666
+      }
+    }
+  ],
+  "metrics": {
+    "latency": 104.71
+  }
+}
