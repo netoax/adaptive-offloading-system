@@ -1,0 +1,30 @@
+{
+  "vertice": [
+    {
+      "id": "cbc357ccb763df2852fee8c4fc7d55f2",
+      "name": "Source: mqtt: main-data-source -\u003e map-main-data",
+      "metrics": {
+        "0.isBackPressured": "false",
+        "0.numRecordsInPerSecond": "0.0",
+        "0.numRecordsOutPerSecond": "0.0"
+      }
+    },
+    {
+      "id": "90bea66de1c231edf33913ecd54406c1",
+      "name": "main-results-collecting -\u003e Sink: sink-mqtt-test",
+      "metrics": {
+        "0.isBackPressured": "false",
+        "0.numRecordsInPerSecond": "0.0",
+        "0.numRecordsOutPerSecond": "0.0"
+      }
+    }
+  ],
+  "metrics": {
+    "latency": [
+      {
+        "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p99",
+        "value": "109.67999999999995"
+      }
+    ]
+  }
+}
