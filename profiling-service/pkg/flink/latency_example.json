@@ -1,0 +1,143 @@
+[
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p95"
+  },
+  {
+    "id": "lastCheckpointSize"
+  },
+  {
+    "id": "lastCheckpointExternalPath"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p90"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_mean"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p999"
+  },
+  {
+    "id": "restartingTime"
+  },
+  {
+    "id": "numberOfInProgressCheckpoints"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_stddev"
+  },
+  {
+    "id": "numberOfCompletedCheckpoints"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p90"
+  },
+  {
+    "id": "numRestarts"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p95"
+  },
+  {
+    "id": "fullRestarts"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p75"
+  },
+  {
+    "id": "lastCheckpointDuration"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p99"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_max"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p98"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_min"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_p999"
+  },
+  {
+    "id": "numberOfFailedCheckpoints"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p95"
+  },
+  {
+    "id": "totalNumberOfCheckpoints"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p90"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_median"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_median"
+  },
+  {
+    "id": "lastCheckpointRestoreTimestamp"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_min"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_max"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_mean"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p75"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p999"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_stddev"
+  },
+  {
+    "id": "lastCheckpointAlignmentBuffered"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p98"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_max"
+  },
+  {
+    "id": "uptime"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_stddev"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.7df19f87deec5680128845fd9a6ca18d.operator_subtask_index.0.latency_p99"
+  },
+  {
+    "id": "downtime"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.90bea66de1c231edf33913ecd54406c1.operator_subtask_index.0.latency_mean"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_median"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_min"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p99"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p98"
+  },
+  {
+    "id": "latency.source_id.cbc357ccb763df2852fee8c4fc7d55f2.operator_id.17fbfcaabad45985bbdf4da0490487e3.operator_subtask_index.0.latency_p75"
+  }
+]

@@ -1,0 +1,125 @@
+{
+  "jid": "ade9d13181ae85e3bd6f3f0a8889d67a",
+  "name": "Complex Event Processing: Filter",
+  "isStoppable": false,
+  "state": "RUNNING",
+  "start-time": 1615249452258,
+  "end-time": -1,
+  "duration": 6954878,
+  "now": 1615256407136,
+  "timestamps": {
+    "RESTARTING": 0,
+    "CANCELLING": 0,
+    "CREATED": 1615249452258,
+    "RECONCILING": 0,
+    "FAILED": 0,
+    "CANCELED": 0,
+    "RUNNING": 1615249452269,
+    "SUSPENDED": 0,
+    "FAILING": 0,
+    "FINISHED": 0
+  },
+  "vertices": [
+    {
+      "id": "cbc357ccb763df2852fee8c4fc7d55f2",
+      "name": "Source: mqtt: main-data-source -> map-main-data",
+      "parallelism": 1,
+      "status": "RUNNING",
+      "start-time": 1615249452384,
+      "end-time": -1,
+      "duration": 6954752,
+      "tasks": {
+        "RUNNING": 1,
+        "DEPLOYING": 0,
+        "FAILED": 0,
+        "RECONCILING": 0,
+        "CANCELING": 0,
+        "SCHEDULED": 0,
+        "FINISHED": 0,
+        "CREATED": 0,
+        "CANCELED": 0
+      },
+      "metrics": {
+        "read-bytes": 0,
+        "read-bytes-complete": true,
+        "write-bytes": 5865472,
+        "write-bytes-complete": true,
+        "read-records": 0,
+        "read-records-complete": true,
+        "write-records": 628251,
+        "write-records-complete": true
+      }
+    },
+    {
+      "id": "90bea66de1c231edf33913ecd54406c1",
+      "name": "main-results-collecting -> Sink: sink-mqtt-test",
+      "parallelism": 1,
+      "status": "RUNNING",
+      "start-time": 1615249452387,
+      "end-time": -1,
+      "duration": 6954749,
+      "tasks": {
+        "RUNNING": 1,
+        "DEPLOYING": 0,
+        "FAILED": 0,
+        "RECONCILING": 0,
+        "CANCELING": 0,
+        "SCHEDULED": 0,
+        "FINISHED": 0,
+        "CREATED": 0,
+        "CANCELED": 0
+      },
+      "metrics": {
+        "read-bytes": 5883294,
+        "read-bytes-complete": true,
+        "write-bytes": 0,
+        "write-bytes-complete": true,
+        "read-records": 628249,
+        "read-records-complete": true,
+        "write-records": 0,
+        "write-records-complete": true
+      }
+    }
+  ],
+  "status-counts": {
+    "RUNNING": 2,
+    "DEPLOYING": 0,
+    "FAILED": 0,
+    "RECONCILING": 0,
+    "CANCELING": 0,
+    "SCHEDULED": 0,
+    "FINISHED": 0,
+    "CREATED": 0,
+    "CANCELED": 0
+  },
+  "plan": {
+    "jid": "ade9d13181ae85e3bd6f3f0a8889d67a",
+    "name": "Complex Event Processing: Filter",
+    "nodes": [
+      {
+        "id": "90bea66de1c231edf33913ecd54406c1",
+        "parallelism": 1,
+        "operator": "",
+        "operator_strategy": "",
+        "description": "main-results-collecting -&gt; Sink: sink-mqtt-test",
+        "inputs": [
+          {
+            "num": 0,
+            "id": "cbc357ccb763df2852fee8c4fc7d55f2",
+            "ship_strategy": "HASH",
+            "exchange": "pipelined_bounded"
+          }
+        ],
+        "optimizer_properties": {}
+      },
+      {
+        "id": "cbc357ccb763df2852fee8c4fc7d55f2",
+        "parallelism": 1,
+        "operator": "",
+        "operator_strategy": "",
+        "description": "Source: mqtt: main-data-source -&gt; map-main-data",
+        "optimizer_properties": {}
+      }
+    ]
+  }
+}
