@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -83,6 +84,11 @@ type Job struct {
 type MetricResponse struct {
 	ID    string `json:"id"`
 	Value string `json:"value"`
+}
+
+func (p *Proxy) SetJobID(id string) {
+	log.Printf("changing job from %s to %s", p.jobID, id)
+	p.jobID = id
 }
 
 func (p *Proxy) buildVerticeMetricsQuery(verticeID string, params ...string) string {
