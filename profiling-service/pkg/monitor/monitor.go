@@ -23,13 +23,23 @@ type Scheduler struct {
 	scheduler      *gocron.Scheduler
 	publisher      mqtt.Publisher
 	deviceProfiler system.DeviceProfiler
-	flinkProfiler  flink.MetricsGetter
+	flink          flink.FlinkService
+	netProfiler    *system.NetworkProfClient
+	netEnabled     bool
+	cepEnabled     bool
 }
 
 // NewMetricsScheduler ...
-func NewMetricsScheduler(publisher mqtt.Publisher, deviceProfiler system.DeviceProfiler, flinkProfiler flink.MetricsGetter) *Scheduler {
+func NewMetricsScheduler(
+	publisher mqtt.Publisher,
+	deviceProfiler system.DeviceProfiler,
+	flink flink.FlinkService,
+	netProfiler *system.NetworkProfClient,
+	netEnabled bool,
+	cepEnabled bool,
+) *Scheduler {
 	scheduler := gocron.NewScheduler(time.UTC)
-	return &Scheduler{scheduler, publisher, deviceProfiler, flinkProfiler}
+	return &Scheduler{scheduler, publisher, deviceProfiler, flink, netProfiler, netEnabled, cepEnabled}
 }
 
 // Start ...
@@ -38,60 +48,66 @@ func (s *Scheduler) Start() {
 }
 
 // SetDevicePolling ...
-func (s *Scheduler) SetDevicePolling(time int) {
-	s.scheduler.Every(time).Seconds().Do(s.sendDeviceMetrics)
+func (s *Scheduler) SetPolling(time int) {
+	s.scheduler.Every(time).Seconds().Do(s.sendMetrics)
 }
 
-// SetFlinkPolling ...
-func (s *Scheduler) SetFlinkPolling(time int) {
-	s.scheduler.Every(time).Seconds().Do(s.sendFlinkMetrics)
-}
-
-// SetNetworkPolling ...
-func (s *Scheduler) SetNetworkPolling(time int, params ...interface{}) {
-	s.scheduler.Every(time).Seconds().Do(s.publisher.Publish, params)
-}
-
-func (s *Scheduler) sendDeviceMetrics() error {
+func (s *Scheduler) sendMetrics() error {
 	cpu, err := s.deviceProfiler.GetCPU()
-	if err != nil {
-		return err
-	}
-
-	mem, err := s.deviceProfiler.GetMemory()
-	if err != nil {
-		return err
-	}
-
-	response := map[string]interface{}{
-		"cpu":    cpu[0],
-		"memory": mem,
-	}
-	encodedResponse, err := json.Marshal(response)
-	if err != nil {
-		return err
-	}
-
-	log.Printf("device metrics obtained: publishing to MQTT broker: %s", encodedResponse)
-	s.publisher.Publish("/metrics/device", encodedResponse)
-
-	return nil
-}
-
-func (s *Scheduler) sendFlinkMetrics() error {
-	response, err := s.flinkProfiler.Get()
 	if err != nil {
 		log.Println(err)
 		return err
 	}
 
-	encodedResponse, err := json.Marshal(response)
+	mem, err := s.deviceProfiler.GetMemory()
+	if err != nil {
+		log.Println(err)
+		return err
+	}
+
+	resp := map[string]interface{}{
+		"cpu":    cpu[0],
+		"memory": mem,
+	}
+
+	if s.netEnabled {
+		bandwidth, err := s.netProfiler.GetBandwidthMbps()
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		rtt, err := s.netProfiler.GetAverageRtt()
+		if err != nil {
+			log.Println(err)
+			return err
+		}
+
+		resp["bandwidth"] = bandwidth
+		resp["rtt"] = rtt
+	}
+
+	if s.cepEnabled {
+		response, err := s.flink.GetMetrics()
+		if err != nil {
+			log.Println(err)
+		} else {
+			resp["cepLatency"] = response.Metrics["latency"]
+		}
+	}
+
+	encodedResponse, err := json.Marshal(resp)
 	if err != nil {
 		return err
 	}
 
-	log.Printf("CEP metrics obtained: publishing to MQTT broker: %s", encodedResponse)
-	s.publisher.Publish("/metrics/cep", encodedResponse)
+	// prettyResponse, err := json.MarshalIndent(resp, "", " ")
+	// if err != nil {
+	// 	return err
+	// }
+
+	log.Println(resp)
+	s.publisher.Publish("/profiling/metrics", encodedResponse)
 
 	return nil
 }

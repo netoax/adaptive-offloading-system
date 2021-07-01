@@ -1,8 +1,11 @@
 package system
 
 import (
+	"errors"
+
 	"github.com/shirou/gopsutil/v3/cpu"
 	"github.com/shirou/gopsutil/v3/mem"
+	"github.com/shirou/gopsutil/v3/net"
 )
 
 // Profiler defines an interface to receive system's profiling information
@@ -11,7 +14,9 @@ type Profiler interface {
 }
 
 // DeviceProfiler ...
-type DeviceProfiler struct{}
+type DeviceProfiler struct {
+	bandwidthValue uint64
+}
 
 // NewProfiler ...
 func NewProfiler() *DeviceProfiler {
@@ -36,4 +41,19 @@ func (dp *DeviceProfiler) GetMemory() (float64, error) {
 	}
 
 	return memory.UsedPercent, nil
+}
+
+func (dp *DeviceProfiler) getNetworkStatsByInterface(name string) (*net.IOCountersStat, error) {
+	counters, err := net.IOCounters(true)
+	if err != nil {
+		return nil, err
+	}
+
+	for _, c := range counters {
+		if c.Name == name {
+			return &c, nil
+		}
+	}
+
+	return nil, errors.New("interface stats not found")
 }

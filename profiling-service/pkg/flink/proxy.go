@@ -10,9 +10,11 @@ import (
 	"strings"
 )
 
-// MetricsGetter ...
-type MetricsGetter interface {
-	Get() (*FinalResponse, error)
+// FlinkService ...
+type FlinkService interface {
+	GetMetrics() (*FinalResponse, error)
+	GetJobs() ([]*FlinkJob, error)
+	// CancelAllJobs() error
 }
 
 // Proxy ...
@@ -22,8 +24,8 @@ type Proxy struct {
 }
 
 // NewProxy ...
-func NewProxy(hostname string, port uint16, jobID string) *Proxy {
-	url, err := url.Parse(fmt.Sprintf("http://%s:%d", hostname, port))
+func NewProxy(address string, jobID string) *Proxy {
+	url, err := url.Parse(fmt.Sprintf("http://%s", address))
 	if err != nil {
 		fmt.Println("cannot parse URL")
 	}
@@ -46,6 +48,12 @@ var verticeMetrics = []string{
 	NumRecordsInPerSecond,
 	NumRecordsOutPerSecond,
 	IsBackPressured,
+}
+
+// FlinkJob ...
+type FlinkJob struct {
+	ID     string `json:"id"`
+	Status string `json:"status"`
 }
 
 type flinkRequest struct {
@@ -119,7 +127,7 @@ func (p *Proxy) ListVertices() ([]*VerticeFlink, error) {
 }
 
 // Get ...
-func (p *Proxy) Get() (*FinalResponse, error) {
+func (p *Proxy) GetMetrics() (*FinalResponse, error) {
 	vertices, err := p.ListVertices()
 	if err != nil {
 		return nil, err
@@ -146,6 +154,7 @@ func (p *Proxy) Get() (*FinalResponse, error) {
 		return nil, errors.New("not enough operators to track latency")
 	}
 
+	// fmt.Println(vResp[0].ID, vResp[len(vResp)-1].ID)
 	latency, err := p.GetLatencyBetweenOperators(99, vResp[0].ID, vResp[len(vResp)-1].ID)
 	if err != nil {
 		return nil, err
@@ -153,7 +162,15 @@ func (p *Proxy) Get() (*FinalResponse, error) {
 
 	var generalMetrics map[string]interface{}
 	generalMetrics = make(map[string]interface{})
-	generalMetrics["latency"] = latency[0].Value
+	// fmt.Println(latency)
+
+	// generalMetrics["latency"] = 0
+
+	if len(latency) > 0 {
+		generalMetrics["latency"] = latency[0].Value
+	} else {
+		generalMetrics["latency"] = 0
+	}
 
 	return &FinalResponse{vResp, generalMetrics}, nil
 }
@@ -206,3 +223,50 @@ func (p *Proxy) GetLatencyBetweenOperators(percentil int, operator1, operator2 s
 
 	return response, nil
 }
+
+// GetAllJobs ...
+func (p *Proxy) GetJobs() ([]*FlinkJob, error) {
+	p.address.Path = "/jobs"
+	resp, err := http.Get(p.address.String())
+	if err != nil {
+		return nil, err
+	}
+
+	var response map[string][]*FlinkJob
+	decoder := json.NewDecoder(resp.Body)
+	err = decoder.Decode(&response)
+	if err != nil {
+		return nil, fmt.Errorf("error decoding response: %w", err)
+	}
+
+	defer resp.Body.Close()
+	return response["jobs"], nil
+}
+
+// // CancelAllJobs ...
+// func (p *Proxy) CancelAllJobs() error {
+// 	jobs, err := p.GetJobs()
+// 	if err != nil {
+// 		return err
+// 	}
+
+// 	for _, j := range jobs {
+// 		err = p.CancelJob(j.ID)
+// 		if err != nil {
+// 			return err
+// 		}
+// 	}
+
+// 	return nil
+// }
+
+// // CancelJob ...
+// func (p *Proxy) CancelJob(id string) error {
+// 	p.address.Path = "/jobs/" + id + "/yarn-cancel"
+// 	resp, err := http.Get(p.address.String())
+// 	if err != nil {
+// 		return nil, err
+// 	}
+
+// 	return err
+// }
