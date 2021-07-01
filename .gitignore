@@ -5,6 +5,11 @@
 *.so
 *.dylib
 
+ddos-detection-app/.idea/
+.DS_Store
+.tours/
+analytics-service/botnet_dataset_1.csv
+
 # Test binary, built with `go test -c`
 *.test
 
