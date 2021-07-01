@@ -10,12 +10,9 @@ class Processor():
     def __init__(self, subscriber, logger):
         self.__subscriber = subscriber
         self.__logger = logger
-        self.__measurement = Measurement()
 
     def start(self):
-        self.__subscriber.on_device_metrics(self._device_metrics_callback)
-        self.__subscriber.on_cep_metrics(self._cep_metrics_callback)
-        self.__subscriber.on_assessment(self._assessment_callback)
+        self.__subscriber.on_metrics(self._metrics_callback)
 
     def on_instance(self, callback):
         self.__instance_callback = callback
@@ -23,8 +20,21 @@ class Processor():
     def on_assessment(self, callback):
         self.__assessment_callback = callback
 
+    def on_assessment_result(self, callback):
+        self.__assessment_result_callback = callback
+
+    def _metrics_callback(self, mosq, obj, msg):
+        data = json.loads(msg.payload)
+        m = Measurement(
+            float(data.get("cepLatency")),
+            data.get("cpu"),
+            data.get("memory"),
+            data.get("bandwidth")
+        )
+        self._process_stream(m)
+
     def _prepare_measurement_sample(self, measurement):
-        instance = np.array([[measurement.latency, measurement.cpu, measurement.memory]])
+        instance = np.array([[measurement.cep_latency, measurement.cpu, measurement.memory, 0]])
         stream = DataStream(instance, n_targets=1, target_idx=-1)
         stream.prepare_for_use()
         X, Y = stream.next_sample()
@@ -33,32 +43,14 @@ class Processor():
     def _assessment_callback(self, mosq, obj, msg):
         data = json.loads(msg.payload)
         measurement = Measurement(data.get("latency"), data.get("cpu"), data.get("memory"))
-        sample = self._prepare_measurement_sample(measurement)
         status = data.get("correct")
-        self.__assessment_callback(sample, bool(status))
+        prediction = data.get("prediction")
+        self.__assessment_result_callback(status)
+        self.__assessment_callback(measurement.to_stream(), bool(status), prediction)
 
-    def _cep_metrics_callback(self, mosq, obj, msg):
-        data = json.loads(msg.payload)
-        self.__measurement.latency = float(data.get("metrics").get("latency"))
-
-        if self.__measurement.is_complete():
-            self.__logger.info("metrics: " + str(self.__measurement))
-            self._process_stream()
-
-    def _device_metrics_callback(self, mosq, obj, msg):
-        data = json.loads(msg.payload)
-        self.__measurement.cpu = data.get("cpu")
-        self.__measurement.memory = data.get("memory")
-
-        if self.__measurement.is_complete():
-            self.__logger.info("metrics: " + str(self.__measurement))
-            self._process_stream()
-
-    def _process_stream(self):
-        X = self._prepare_measurement_sample(self.__measurement)
+    def _process_stream(self, measurement):
         self.__instance_callback({
             "timestamp": str(datetime.datetime.utcnow()),
             "id": str(uuid.uuid4()),
-            "sample": X
+            "sample": measurement.to_stream(),
         })
-
