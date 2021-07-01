@@ -9,15 +9,21 @@ class Classifier():
     def on_classification(self, callback):
         self.__classification_callback = callback
 
-    def predict(self, instance):
-        # print(instance)
-        result = self.__model.predict(instance['sample'])
-        # print("classification")
-        # print(result[0])
-
-        result = {
-            'model': "HoeffdingTree", # Get from model
-            'result': bool(result[0])
+    def _get_instance(self, ndarray):
+        return {
+            'cep_latency': ndarray['sample'][0][0],
+            'cpu':ndarray['sample'][0][1],
+            'memory': ndarray['sample'][0][2],
+            'bandwidth': ndarray['sample'][0][3]
         }
 
-        self.__classification_callback(json.dumps(result))
+    def predict(self, instance):
+        result = self.__model.predict(instance['sample'])
+        result = {
+            'model': "HoeffdingTree", # Get from model
+            'result': bool(result[0]),
+            'instance': self._get_instance(instance)
+        }
+
+        self.__logger.info("prediction result is {}".format(result['result']))
+        self.__classification_callback(result)
