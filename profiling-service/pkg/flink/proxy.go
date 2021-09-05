@@ -4,7 +4,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log"
 	"net/http"
 	"net/url"
 	"strings"
@@ -24,13 +23,13 @@ type Proxy struct {
 }
 
 // NewProxy ...
-func NewProxy(address string, jobID string) *Proxy {
+func NewProxy(address string) *Proxy {
 	url, err := url.Parse(fmt.Sprintf("http://%s", address))
 	if err != nil {
 		fmt.Println("cannot parse URL")
 	}
 
-	return &Proxy{url, jobID}
+	return &Proxy{url, ""}
 }
 
 const (
@@ -95,7 +94,6 @@ type MetricResponse struct {
 }
 
 func (p *Proxy) SetJobID(id string) {
-	log.Printf("changing job from %s to %s", p.jobID, id)
 	p.jobID = id
 }
 

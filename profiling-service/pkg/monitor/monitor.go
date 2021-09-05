@@ -2,7 +2,8 @@ package monitor
 
 import (
 	"encoding/json"
-	"log"
+	"fmt"
+	"os"
 	"time"
 
 	"github.com/go-co-op/gocron"
@@ -49,37 +50,36 @@ func (s *Scheduler) Start() {
 
 // SetDevicePolling ...
 func (s *Scheduler) SetPolling(time int) {
+	os.Setenv("BR", "America/Fortaleza")
 	s.scheduler.Every(time).Seconds().Do(s.sendMetrics)
 }
 
 func (s *Scheduler) sendMetrics() error {
 	cpu, err := s.deviceProfiler.GetCPU()
 	if err != nil {
-		log.Println(err)
-		return err
+		cpu = []float64{0.0}
 	}
 
 	mem, err := s.deviceProfiler.GetMemory()
 	if err != nil {
-		log.Println(err)
-		return err
+		mem = 0.0
 	}
 
+	currentTime := time.Now()
 	resp := map[string]interface{}{
-		"cpu":    cpu[0],
-		"memory": mem,
+		"timestamp": currentTime.Format("2006-01-02T15:04:05-0700"),
+		"cpu":       cpu[0],
+		"memory":    mem,
 	}
 
 	if s.netEnabled {
 		bandwidth, err := s.netProfiler.GetBandwidthMbps()
 		if err != nil {
-			log.Println(err)
 			return err
 		}
 
 		rtt, err := s.netProfiler.GetAverageRtt()
 		if err != nil {
-			log.Println(err)
 			return err
 		}
 
@@ -90,7 +90,7 @@ func (s *Scheduler) sendMetrics() error {
 	if s.cepEnabled {
 		response, err := s.flink.GetMetrics()
 		if err != nil {
-			log.Println(err)
+			resp["cepLatency"] = 0.0
 		} else {
 			resp["cepLatency"] = response.Metrics["latency"]
 		}
@@ -101,12 +101,7 @@ func (s *Scheduler) sendMetrics() error {
 		return err
 	}
 
-	// prettyResponse, err := json.MarshalIndent(resp, "", " ")
-	// if err != nil {
-	// 	return err
-	// }
-
-	log.Println(resp)
+	fmt.Println(string(encodedResponse))
 	s.publisher.Publish("/profiling/metrics", encodedResponse)
 
 	return nil
