@@ -16,6 +16,8 @@ import (
 // 	GetLocation() error
 // }
 
+const savepointIntervalInSeconds = 5
+
 type SavepointRequest struct {
 	TargetDirectory string `json:"target-directory"`
 	CancelJob       bool   `json:"cancel-job"`
@@ -52,14 +54,12 @@ func (f *Flink) GetState() ([]byte, error) {
 		return nil, err
 	}
 
-	time.Sleep(10 * time.Second)
+	time.Sleep(savepointIntervalInSeconds * time.Second)
 
 	location, err := f.GetLocation(jobId, triggerId)
 	if err != nil {
 		return nil, err
 	}
-
-	// fmt.Println(filepath.Abs(location))
 
 	content, err := ioutil.ReadFile(strings.ReplaceAll(location, "file:", "") + "/_metadata")
 	if err != nil {
@@ -93,8 +93,6 @@ func (f *Flink) TriggerSavepoint(jobId string) (string, error) {
 		return "", err
 	}
 
-	fmt.Println(response.RequestID)
-
 	return response.RequestID, nil
 }
 
@@ -111,8 +109,6 @@ func (f *Flink) GetLocation(jobId, triggerId string) (string, error) {
 	if err != nil {
 		return "", fmt.Errorf("error decoding response: %w", err)
 	}
-
-	fmt.Println(response)
 
 	defer resp.Body.Close()
 	return response.Operation.Location, nil

@@ -56,6 +56,10 @@ func (p *MessageSubscriber) OnApplicationData(handler func(string, string)) erro
 	return p.Subscribe(p.local, dataSent, handler)
 }
 
+func (p *MessageSubscriber) OnApplicationName(handler func(string, string)) error {
+	return p.Subscribe(p.local, applicationName, handler)
+}
+
 // Subscribe ...
 func (p *MessageSubscriber) Subscribe(broker *Broker, topic string, handler func(string, string)) error {
 	messageHandler := func(client MQTT.Client, msg MQTT.Message) {

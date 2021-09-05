@@ -45,8 +45,12 @@ func (p *MessagePublisher) PublishLocalApplicationData(topic, payload string) er
 	return p.Publish(p.local, "/cep"+topic, payload)
 }
 
+func (p *MessagePublisher) PublishJobID(payload string) error {
+	return p.Publish(p.local, "/profiling/job/id", payload)
+}
+
 func (p *MessagePublisher) Publish(broker *Broker, topic string, data interface{}) error {
-	token := broker.client.Publish(topic, 0, false, data)
+	token := broker.client.Publish(topic, 1, false, data)
 	if token.Error() != nil {
 		return token.Error()
 	}
