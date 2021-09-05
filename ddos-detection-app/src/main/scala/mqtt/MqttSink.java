@@ -37,12 +37,6 @@ public class MqttSink<T> extends RichSinkFunction<T> {
     }
 
     @Override
-    public void invoke(T event) throws Exception {
-        byte[] payload = event.toString().getBytes();
-        blockingConnection.publish(topic, payload, qos, retain);
-    }
-
-    @Override
     public void close() throws Exception {
         super.close();
         blockingConnection.disconnect();
@@ -56,7 +50,4 @@ public class MqttSink<T> extends RichSinkFunction<T> {
         blockingConnection = mqtt.blockingConnection();
         blockingConnection.connect();
     }
-
-
-
 }
