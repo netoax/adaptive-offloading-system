@@ -28,3 +28,11 @@ class Measurement:
         self.cpu = data['cpu']
         self.memory = data['memory']
         self.bandwidth = data['bandwidth']
+
+    def to_dict(self):
+        return {
+            "cep_latency": self.cep_latency,
+            "cpu": self.cpu,
+            "memory": self.memory,
+            "bandwidth": self.bandwidth
+        }

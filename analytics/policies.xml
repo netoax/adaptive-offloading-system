@@ -1,10 +1,7 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <policies>
-    <policy name="memory" value="70" type="simple"/>
     <policy name="cpu" value="40" type="simple"/>
-    <policy name="bandwidth" value="50" type="simple"/>
-    <policy name="cep_latency" value="200" type="simple"/>
 
     <policy type="composed">
         <rule name="cpu" value="60"/>

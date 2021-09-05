@@ -10,6 +10,9 @@ class MQTT():
         self.client.on_connect = self.on_connected
         self.client.connect(self.hostname, self.port)
 
+    def stop(self):
+        self.client.disconnect()
+
     def loop_forever(self):
         self.client.loop_forever()
 
