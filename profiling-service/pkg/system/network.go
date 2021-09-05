@@ -32,6 +32,14 @@ func (npc *NetworkProfClient) Start() error {
 	c.SetInterval(1)
 
 	npc.client = c
+
+	err := npc.client.Start()
+	if err != nil {
+		return err
+	}
+
+	<-npc.client.Done
+
 	return nil
 }
 
@@ -49,13 +57,7 @@ func (nps *networkProfServer) Start() error {
 }
 
 func (npc *NetworkProfClient) GetBandwidthMbps() (float64, error) {
-	err := npc.client.Start()
-	if err != nil {
-		return 0, err
-	}
-
-	<-npc.client.Done
-
+	npc.Start()
 	result := npc.client.Report().End.SumReceived.BitsPerSecond / 1000000
 	return float64(int(result*100)) / 100, nil
 }

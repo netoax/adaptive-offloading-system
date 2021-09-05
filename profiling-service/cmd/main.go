@@ -2,7 +2,6 @@ package main
 
 import (
 	"fmt"
-	"log"
 	"os"
 	"strconv"
 
@@ -26,10 +25,6 @@ type configuration struct {
 
 func getConfig() configuration {
 	config := configuration{"", 30, 60, "", 60, false, "", true, true}
-
-	if os.Getenv("FLINK_JOB_ID") != "" {
-		config.jobID = os.Getenv("FLINK_JOB_ID")
-	}
 
 	if os.Getenv("FLINK_SERVER_ADDRESS") != "" {
 		config.flinkAddress = os.Getenv("FLINK_SERVER_ADDRESS")
@@ -77,9 +72,8 @@ func main() {
 
 	publisher := mqtt.NewPublisher(*broker)
 	subscriber := mqtt.NewSubscriber(*broker)
-	flinkService := flink.NewProxy(config.flinkAddress, config.jobID)
+	flinkService := flink.NewProxy(config.flinkAddress)
 	scheduler := monitor.NewMetricsScheduler(publisher, deviceProfiler, flinkService, &networkClientProf, config.networkEnabled, config.cepEnabled)
-	log.Println("starting iperf...")
 
 	subscriber.Subscribe("/profiling/job/id", flinkService.SetJobID)
 
