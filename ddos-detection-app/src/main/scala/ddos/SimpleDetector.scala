@@ -2,6 +2,7 @@ package ddos
 
 import java.util
 
+import ddos.Events.NetworkEvent
 import io.circe.{Decoder, parser}
 import mqtt.{MqttMessage, MqttSink, MqttSource}
 import org.apache.flink.configuration.Configuration
@@ -14,41 +15,29 @@ import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironm
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.util.Collector
 
-case class NetworkEvent(timestamp: Double,
-                        protocol: String,
-                        sourceAddr: String,
-                        sourcePort: Int,
-                        destAddr: String,
-                        destPort: Int,
-                        bytes: Int,
-                        state: String
-                       )
-
 case class ResultEvent(detected: Boolean, address: String)
 
-class Detector {
+class SimpleDetector {
   val APPLICATION_DATA_NETWORK_TOPIC = "/cep/application/network/data"
   val APPLICATION_RESPONSE_TOPIC = "/cep/application/response"
   val MQTT_BROKER_HOSTNAME = "localhost"
 
   def start(): Unit = {
     val conf = new Configuration()
-    conf.setString("rest.port", "8282")
+//    conf.setString("rest.port", "8282")
 //    conf.setString("taskmanager.memory.task.heap.size", "300")
 //    val env = StreamExecutionEnvironment.createLocalEnvironment(4, conf)
 //    println(conf)
-    val env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
-//    val env = StreamExecutionEnvironment.getExecutionEnvironment
+//    val env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
+    val env = StreamExecutionEnvironment.getExecutionEnvironment
 //    StreamExecutionEnvironment.cr
-
-
-//    env.getConfig.setGlobalJobParameters()
 
     //    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
     env.getConfig.setLatencyTrackingInterval(30000)
 
     val networkSource: DataStream[MqttMessage] = env
       .addSource(new MqttSource(MQTT_BROKER_HOSTNAME, APPLICATION_DATA_NETWORK_TOPIC))
+      .uid("network-data-source")
       .name("mqtt: network-events-data-source")
 
     // Create NetworkEvent representation
@@ -64,6 +53,7 @@ class Detector {
     // Create traffic data stream
     val networkStream: DataStream[NetworkEvent] = networkSource
       .map(mapNetworkData)
+      .uid("map-network-event")
       .name("map-network-event")
 
     // Simple pattern
@@ -75,7 +65,6 @@ class Detector {
       .times(10)
 
     val partitionedInput = networkStream.keyBy(event => event.sourceAddr)
-
     val patternStream = CEP.pattern(partitionedInput, start)
 
     val patternTestFn = new PatternProcessFunction[NetworkEvent, ResultEvent]() {
@@ -90,10 +79,12 @@ class Detector {
 
     val mainResults: DataStream[ResultEvent] = patternStream.process(patternTestFn)
       .name("main-results-collecting")
+      .uid("main-results-collecting")
 
     mainResults
       .addSink(new MqttSink[ResultEvent](MQTT_BROKER_HOSTNAME, APPLICATION_RESPONSE_TOPIC))
       .name("mqtt: network-event-response-sink")
+      .uid("network-event-response-sink")
 
     env.execute("DDoS Attack Detection")
   }

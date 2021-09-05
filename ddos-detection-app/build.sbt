@@ -4,6 +4,8 @@ version := "0.1"
 
 scalaVersion := "2.11.11"
 
+//javaHome := Some(file("/Library/Java/JavaVirtualMachines/jdk-13.0.1.jdk/Contents/Home"))
+
 // https://mvnrepository.com/artifact/org.apache.flink/flink-scala
 libraryDependencies += "org.apache.flink" %% "flink-scala" % "1.10.0"
 
