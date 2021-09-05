@@ -15,6 +15,7 @@ var (
 	conceptDriftOccurrence = "/prediction/drift"
 
 	// application
-	dataSent = "/application/+/data"
+	dataSent        = "/application/+/data"
+	applicationName = "/application/name"
 	// dataToCep = "/cep/application/+/data"
 )

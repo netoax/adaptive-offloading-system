@@ -16,10 +16,11 @@ type config struct {
 	flinkAddress      string
 	jarId             string
 	standaloneJarPath string
+	app               string
 }
 
 func getConfig() config {
-	config := config{"edge", "tcp://localhost:1883", "tcp://localhost:1883", "http://localhost:8081", "", ""}
+	config := config{"edge", "tcp://localhost:1883", "tcp://localhost:1883", "http://localhost:8081", "", "", ""}
 
 	if os.Getenv("EXECUTION_MODE") != "" {
 		config.executionMode = os.Getenv("EXECUTION_MODE")
@@ -58,17 +59,7 @@ func main() {
 	subscriber := mqtt.NewSubscriber(config.executionMode, localConnection, remoteConnection)
 	publisher := mqtt.NewPublisher(localConnection, remoteConnection)
 
-	flink := flink.NewFlink(config.flinkAddress, config.jarId, config.standaloneJarPath)
-
-	// offloadingStm := stm.NewOffloading()
-	// offloadingStm.FSM.Event("signal")
-	// offloadingStm.FSM.Event("init")
-
-	// offloadingStm.FSM.Event("signal")
-
-	// fmt.Println(offloadingStm.FSM.Current())
-
-	// offloadingStm.FSM.Event("ready")
+	flink := flink.NewFlink(config.flinkAddress, config.jarId, config.standaloneJarPath, config.executionMode)
 
 	err := localConnection.Start()
 	if err == nil {
@@ -86,17 +77,13 @@ func main() {
 
 	if config.executionMode == "edge" {
 		edgeRunner := runner.NewEdge(subscriber, publisher, flink)
+		subscriber.OnApplicationName(edgeRunner.SetApplication)
 		edgeRunner.Start()
 	} else {
 		cloudRunner := runner.NewCloud(subscriber, publisher, flink)
+		subscriber.OnApplicationName(cloudRunner.SetApplication)
 		cloudRunner.Start()
 	}
 
-	// if err != nil {
-	// 	fmt.Println(err)
-	// }
-
 	<-test
 }
-
-//   empty ->

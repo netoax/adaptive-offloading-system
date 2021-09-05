@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os/exec"
+	"time"
 )
 
 type Job struct {
@@ -34,9 +36,21 @@ func (f *Flink) GetJobs() ([]*Job, error) {
 	return response["jobs"], nil
 }
 
-func (f *Flink) RunJob(savepointPath string) error {
-	f.address.Path = "/jars/" + f.jarId + "/run?entry-class=main&savepointPath=" + savepointPath
+// func (f *Flink) RunJob(savepointPath, parallelism, name string) {
+// 	if f.executionMode == "edge" {
+// 		f.StartStandaloneJob(name)
+// 	} else if f.executionMode == "cloud" {
+// 		f.RunJobInCluster(savepointPath, parallelism)
+// 	}
+// }
 
+func (f *Flink) RunJob(savepointPath, parallelism string) error {
+	parameters := url.Values{}
+	parameters.Add("entry-class", "main")
+	parameters.Add("savepointPath", savepointPath)
+	parameters.Add("parallelism", parallelism)
+	f.address.RawQuery = parameters.Encode()
+	f.address.Path = "/jars/" + f.jarId + "/run"
 	resp, err := http.Post(f.address.String(), "application/json", nil)
 	if err != nil {
 		return err
@@ -50,7 +64,6 @@ func (f *Flink) RunJob(savepointPath string) error {
 	}
 
 	f.jobId = response.JobId
-
 	return nil
 }
 
@@ -66,20 +79,39 @@ func (f *Flink) StopJob() error {
 	return nil
 }
 
-func (f *Flink) StartStandaloneJob() error {
-	_, err := exec.Command("serviceman", "start", "app-edge").Output()
+func (f *Flink) StartStandaloneJob(name string) (string, error) {
+	_, err := exec.Command("/bin/sh", "-c", "sudo systemctl start "+name).Output()
 	if err != nil {
 		fmt.Println(err)
-		return fmt.Errorf("error starting service: %w", err)
+		return "", fmt.Errorf("error starting service: %w", err)
 	}
-	return nil
+
+	var jobs []*Job
+
+	ticker := time.NewTicker(1 * time.Second)
+	status := make(chan bool)
+	go func() {
+		for range ticker.C {
+			jobs, err = f.GetJobs() // TODO: find more lightweight operation
+			if err != nil {
+				continue
+			}
+
+			status <- true
+		}
+	}()
+
+	<-status
+	ticker.Stop()
+	return jobs[0].ID, nil
 }
 
-func (f *Flink) StopStandaloneJob() error {
-	_, err := exec.Command("serviceman", "stop", "app-edge").Output()
+func (f *Flink) StopStandaloneJob(name string) error {
+	_, err := exec.Command("/bin/sh", "-c", "sudo systemctl stop "+name).Output()
 	if err != nil {
 		fmt.Println(err)
 		return fmt.Errorf("error stopping service: %w", err)
 	}
+
 	return nil
 }
