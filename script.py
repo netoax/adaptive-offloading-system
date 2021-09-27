@@ -25,6 +25,9 @@ from analytics.network.mqtt import MQTT
 from analytics.policy_manager import PolicyManager
 from analytics.models.metric import Measurement
 
+from ssh import *
+from data import *
+
 
 '''
 Requirements
@@ -49,37 +52,84 @@ Name suggestion: `profiler-<timestamp->-<execution-number>`.{txt, csv}
 
 EDGE_NODE_HOSTNAME = '192.168.3.11'
 EDGE_NODE_SSH_USERNAME = 'pi'
+EDGE_WORKDIR = '/home/pi/'
 
-PROFILER_RESULTS_DIRECTORY = './results/profiler'
-PROFILER_LOG_FILE_NAME_FORMAT = 'profiler-*.txt'
+CLOUD_NODE_HOSTNAME = '192.168.3.7'
+CLOUD_NODE_SSH_USERNAME = 'netoax'
+CLOUD_WORKDIR = '/home/netoax/experiment'
 
-APPLICATIONS = ['ddos-10s', 'ddos-128s']
+RAW_DATA_LOGS_OUTPUT_DIR = './results/staging'
+LOG_FILE_NAME_FORMAT = '*.txt'
+
+APPLICATIONS = ['ddos-10s']
 
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
 BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str}
 
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']
-DATA_THROUGHPUT_FACTORS = ['0.00001', '0.0']
-NUMBER_OF_EVENTS_TO_PUBLISH = '50000'
+DATA_THROUGHPUT_FACTORS = ['0.01', '0.001', '0.0001', '0.0']
+NUMBER_OF_EVENTS_TO_PUBLISH = '500000'
 
 # EXECUTION_MODE = os.environ.get('EXECUTION_MODE') || 'test'
 
 mqtt_local_hostname = '192.168.3.11'
 mqtt = MQTT(hostname=mqtt_local_hostname, port=1883)
-
 publisher = MessagePublisher(mqtt)
 # mqtt.start()
 
 logger = init_logger(__name__, testing_mode=False)
 policy_manager = PolicyManager('./analytics/policies.xml', logger, publisher)
 
-def _kill_application(client, application):
-    stdin, stdout, stderr = client.exec_command('pgrep {}'.format(application))
-    output = ''
-    for line in stdout.readlines():
-        output += line
-    pid = output.strip('\n')
-    client.exec_command('kill -9 {}'.format(pid))
+
+'''
+    Dependencies start/stop
+'''
+
+def _start_edge_profiler(client, execution_number):
+    filename = 'edge: profiler-execution-{}-workload-{}'.format(execution_number, datetime.now()).replace(" ", "")
+    cmd = 'export $(cat ./profiler.env) && ./profiler > {}.txt 2>&1 &'.format(filename)
+    stdin, stdout, stderr = client.exec_command(cmd)
+    return filename
+
+def _start_cloud_profiler(client, execution_number):
+    filename = 'cloud: profiler-execution-{}-workload-{}'.format(execution_number, datetime.now()).replace(" ", "")
+    cmd = 'cd experiment && export $(cat ./profiler.env) && ./profiler > {}.txt 2>&1 &'.format(filename)
+    stdin, stdout, stderr = client.exec_command(cmd)
+    return filename
+
+def _stop_profiler(client):
+    kill_application(client, 'profiler')
+
+def _start_edge_decision_engine(client):
+    filename = 'edge: decision-logs-{}'.format(datetime.now()).replace(" ", "")
+    cmd = 'cd {} && export $(cat ./decision.env) && ./decision > {} 2>&1 &'.format(EDGE_WORKDIR, filename)
+    stdin, stdout, stderr = client.exec_command(cmd)
+
+def _start_cloud_decision_engine(client):
+    filename = 'cloud: decision-logs-{}'.format(datetime.now()).replace(" ", "")
+    cmd = 'cd {} && export $(cat ./decision.env) && ./decision > {} 2>&1 &'.format(CLOUD_WORKDIR, filename)
+    stdin, stdout, stderr = client.exec_command(cmd)
+
+def _stop_decision_engine(client):
+    kill_application(client, 'decision')
+
+def _start_cep_application(client, application):
+    cmd = 'sudo systemctl start {}'.format(application)
+    stdin, stdout, stderr = client.exec_command(cmd)
+
+def _stop_cep_application(client):
+    kill_application(client, 'java')
+
+def _start_analytics(client):
+    cmd = 'cd analytics && source ./env/bin/activate && python -m main > analytics.txt 2>&1 &'
+    stdin, stdout, stderr = client.exec_command(cmd)
+
+def _stop_analytics(client):
+    kill_application(client, 'python')
+
+'''
+    CEP Application data
+'''
 
 def _from_row_to_dict(row):
     data = {
@@ -94,96 +144,10 @@ def _from_row_to_dict(row):
     }
     return data
 
-def publish_botnet_data(factor='5', number='100000', chunk='100000'):
-    reader = pd.read_csv(
-        './test.csv',
-        usecols=BOTNET_DATASET_USED_COLUMNS,
-        dtype=BOTNET_DATASET_COLUMNS_DATA_TYPE,
-        nrows=int(number),
-        chunksize=100000
-    )
-    now = time.time()
-    count = 0
-    for df in reader:
-        df = df.dropna()
-        df = df[df['sport'] != '0x0303']
-        df = df[df['dport'] != '0x5000']
-        for index, row in df.iterrows():
-            try:
-                count = count + 1
-                data = _from_row_to_dict(row)
-                publisher.publish_network_data(json.dumps(data))
-                time.sleep(float(factor))
-            except Exception as ex:
-                print(ex)
-    elapsed = time.time() - now
-    print('\tpublished {} events in {} seconds/minutes'.format(count, elapsed))
-    print('\tthroughput: {}'.format(count / elapsed))
-
 def _get_cep_job_id():
     r = requests.get('http://{}:8282/jobs'.format(EDGE_NODE_HOSTNAME))
     response = r.json()
     return response['jobs'][0]['id']
-
-def _start_ssh_connection(hostname, user):
-    client = paramiko.SSHClient()
-    client.load_system_host_keys()
-    client.connect(hostname, 22, user)
-    return client
-
-def _start_profiler(client, execution_number, application):
-    # filename = 'profiler-execution-{}-workload-{}-{}'.format(execution_number, application, datetime.now()).replace(" ", "")
-    # job_id = _get_cep_job_id()
-    cmd = 'export $(cat ./profiler.env) && export FLINK_JOB_ID={} && ./profiler > {}.txt 2>&1 &'.format(job_id, filename)
-    stdin, stdout, stderr = client.exec_command(cmd)
-    return filename, job_id
-
-def _stop_profiler(client):
-    _kill_application(client, 'profiler')
-
-def _get_profiler_logs(client):
-    file_path = '/home/pi/{}'.format(PROFILER_LOG_FILE_NAME_FORMAT)
-    stdin, stdout, stderr = client.exec_command('ls {}'.format(file_path))
-    result = stdout.read().split()
-    scp = SCPClient(client.get_transport())
-    for file in result:
-        file = scp.get(file, PROFILER_RESULTS_DIRECTORY)
-
-    client.exec_command('rm {}'.format(file_path))
-    scp.close()
-
-def _process_profiler_logs(filename):
-    file = open('./results/profiler/{}.txt'.format(filename))
-    next(file) # skip first line
-    header = ['bandwidth', 'cepLatency', 'cpu', 'memory', 'rtt', 'timestamp']
-    with open('./results/profiler/{}.csv'.format(filename), 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        for line in file:
-            instance = json.loads(line)
-            writer.writerow(instance.values())
-
-def _start_decision_engine(client):
-    cmd = 'export $(cat ./decision.env) && ./decision > decision.txt 2>&1 &'
-    stdin, stdout, stderr = client.exec_command(cmd)
-    # print(stdout)
-
-def _stop_decision_engine(client):
-    _kill_application(client, 'decision')
-
-def _start_cep_application(client, application):
-    cmd = 'sudo systemctl start {}'.format(application)
-    stdin, stdout, stderr = client.exec_command(cmd)
-
-def _stop_cep_application(client):
-    _kill_application(client, 'java')
-
-def _start_analytics(client):
-    cmd = 'cd analytics && source ./env/bin/activate && python -m main &'
-    stdin, stdout, stderr = client.exec_command(cmd)
-
-def _stop_analytics():
-    _kill_application(client, 'python')
 
 def _save_flink_overall_metrics(job_id, execution_number, application):
     r = requests.get('http://{}:8282/jobs/{}'.format(EDGE_NODE_HOSTNAME, job_id))
@@ -192,126 +156,81 @@ def _save_flink_overall_metrics(job_id, execution_number, application):
     file.write(response)
     file.close()
 
-def _publish_workload_data():
-    # publish_botnet_data('0.1', '500000')
-    for f in DATA_THROUGHPUT_FACTORS:
-        timestamp = datetime.now()
-        print('\t{} - botnet workload: factor {}'.format(timestamp, f))
-        publish_botnet_data(f, NUMBER_OF_EVENTS_TO_PUBLISH)
-        # TODO: log information to metadata file
-        # idle time
-        timestamp = datetime.now()
-        print('\t{} - botnet workload: idle time'.format(timestamp))
-        time.sleep(5 * 60)
+def _publish_application_name(name):
+    publisher.publish_application_name(name)
 
-def run_experiment(client):
+'''
+    Experiment Orchestration
+'''
+
+def run_experiment(edgeClient, cloudClient):
     number_of_executions = 30
     # TODO: add loop for internal replications (30 executions for increasing statistical power)
 
-    _start_decision_engine(client)
-    _start_analytics(client)
-    _start_profiler(client, 0, application)
+    _start_analytics(edgeClient)
+    _start_edge_profiler(edgeClient, 0)
+    _start_cloud_profiler(cloudClient, 0)
 
     for application in APPLICATIONS:
-        # publish_botnet_data('0.1', '500000')
-        print('Running experiment for {} with configured workload'.format(application))
+        print('Running experiment for application: {}'.format(application))
 
-        _start_cep_application(client, application)
-        sleep(200)
-        print('\tApplication started')
+        _start_cep_application(edgeClient, application)
+        _start_edge_decision_engine(edgeClient)
+        _start_cloud_decision_engine(cloudClient)
 
+        sleep(5)
 
-        filename, job_id = _start_profiler(client, 0, application)
-        print('\tProfiler started')
-
-        print('\tPublishing data to application')
         mqtt.start()
-        _publish_workload_data()
+        _publish_application_name(application)
         mqtt.stop()
 
-        print('\tExecution logs received')
-        _get_profiler_logs(client)
+        sleep(2 * 60)
 
-        print('\tExecution logs processed')
-        _process_profiler_logs(filename)
+        mqtt.start()
+        publish_workload_data(publisher, DATA_THROUGHPUT_FACTORS, NUMBER_OF_EVENTS_TO_PUBLISH)
+        mqtt.stop()
 
-        _stop_profiler(client)
+        # print('\tReceiving logs from nodes')
 
-        _save_flink_overall_metrics(job_id, 0, application)
+        # _get_profiler_logs(cloudClient, '/'+CLOUD_WORKDIR)
+        # _process_profiler_logs(filename)
+        # _save_flink_overall_metrics(job_id, 0, application)
 
-        print('\tFinishing experiment')
-        _stop_cep_application(client)
+        print('\tDone')
+
+        _stop_cep_application(edgeClient)
+        _stop_decision_engine(edgeClient)
+        _stop_decision_engine(cloudClient)
+
+        get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
+        get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
 
         print('\n')
 
-    _stop_decision_engine(client)
+    _stop_profiler(edgeClient)
+    _stop_profiler(cloudClient)
+    _stop_analytics(edgeClient)
+
 
 # --------------- graphs
 
-def create_line_charts_from_csv(columns=[]):
-    pd.plotting.register_matplotlib_converters()
-
-    fname = cbook.get_sample_data('/Users/jneto/msc/workspace/adaptive-offloading-system/data.csv', asfileobj=False)
-    with cbook.get_sample_data('/Users/jneto/msc/workspace/adaptive-offloading-system/data.csv') as file:
-        msft = pd.read_csv(file, parse_dates=['timestamp'])
-        msft.plot("timestamp", ["cpu"], subplots=True)
-        # msft.show()
-        fig, ax = plt.subplots()
-        # ax.xaxis.set_major_formatter(mdates.DateFormatter('%Y-%m'))
-        plt.show()
-        # plt.savefig('plot.png', dpi=300, bbox_inches='tight')
-
-
-    # with open('file.csv') as file:
-    #     line_reader = csv.reader(File)
-
-    # data = np.genfromtxt("./data.csv", delimiter=",", names=["timestamp", "cpu"])
-    # plt.plot(data['timestamp'], data['cpu'])
-
-def statistical_tests():
-    df = pd.read_csv('./data_2.csv')
-    k2, p = stats.normaltest(df['memory'])
-    alpha = 1e-3
-    print(k2, p)
-    if p < alpha:
-        print("The null hypothesis can be rejected")
-    else:
-        print("The null hypothesis cannot be rejected")
-
-def _label_columns():
-    df = pd.read_csv('./analytics/random_data_test.csv')
-    for index, row in df.iterrows():
-        # print(row)
-        measurement = Measurement(row['cepLatency'], row['cpu'], row['memory'], row['bandwidth'])
-        # print(measurement)
-        policy_manager.process()
-        violated = policy_manager.is_composed_violated(measurement.to_dict()) or policy_manager.is_simple_violated(measurement.to_dict())
-        # df['violated'] = int(violated)
-        df.loc[index, 'violated'] = int(violated)
-    df.to_csv('./random_data_labeled.csv', index=False)
-
-# create_line_charts_from_csv()
-
-# statistical_tests()
-# _label_columns()
-
-client = _start_ssh_connection(EDGE_NODE_HOSTNAME, EDGE_NODE_SSH_USERNAME)
+edgeClient = start_ssh_connection(EDGE_NODE_HOSTNAME, EDGE_NODE_SSH_USERNAME)
+cloudClient = start_ssh_connection(CLOUD_NODE_HOSTNAME, CLOUD_NODE_SSH_USERNAME)
 
 def signal_handler(sig, frame):
     print('Exiting gracefully')
     mqtt.stop()
-    _stop_profiler(client)
-    _stop_cep_application(client)
-    _stop_decision_engine(client)
+    _stop_profiler(edgeClient)
+    _stop_profiler(cloudClient)
+    _stop_cep_application(edgeClient)
+    _stop_decision_engine(edg33eClient)
+    _stop_decision_engine(cloudClient)
+    _stop_analytics(edgeClient)
     sys.exit(0)
 
-# publish_botnet_data('0.1', '500000')
-# sleep(15)
 signal.signal(signal.SIGINT, signal_handler)
-run_experiment(client)
-# _save_flink_overall_metrics('69119a0c35183a9f20dfb2f7cdd5ee9d', 0, 'ddos.jar')
-# _process_profiler_logs('profiler-execution-0-workload-ddos-128s.jar-2021-08-0519:23:08.382728')
-client.close()
+run_experiment(edgeClient, cloudClient)
+cloudClient.close()
 
 # TODO: 1. adicionar categorizacaoo das colunas e gerar CSV consolidado dos dados.
 # TODO: 2. adicionar coleta de metricas gerais do CEP (DONE)
