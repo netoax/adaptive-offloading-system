@@ -13,3 +13,6 @@ class MessageSubscriber():
 
     def on_assessment(self, callback):
         self.mqtt.subscribe('/assessment', callback)
+
+    def on_cep_response(self, callback):
+        self.mqtt.subscribe('/cep/application/response', callback)

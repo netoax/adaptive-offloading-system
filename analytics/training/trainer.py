@@ -14,12 +14,13 @@ MODELS = {
 POLICIES_PATH = './policies.xml'
 
 class Trainer():
-    def __init__(self, model, logger, external_assessment, publisher):
+    def __init__(self, model, logger, external_assessment, publisher, policy_manager):
         self.__model = MODELS[model]()
         self.__logger = logger
         self.__metrics = ClassificationMeasurements([0,1], int)
         self.__external_assessment = external_assessment
-        self.__policy_manager = PolicyManager(POLICIES_PATH, logger, publisher)
+        # self.__policy_manager = PolicyManager(POLICIES_PATH, logger, publisher)
+        self.__policy_manager = policy_manager
 
     def get_trained_model(self):
         return self.__model

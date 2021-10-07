@@ -10,6 +10,7 @@ class Processor():
     def __init__(self, subscriber, logger):
         self.__subscriber = subscriber
         self.__logger = logger
+        self._measurement_instance_callback = None
 
     def start(self):
         self.__subscriber.on_metrics(self._metrics_callback)
@@ -23,6 +24,9 @@ class Processor():
     def on_assessment_result(self, callback):
         self.__assessment_result_callback = callback
 
+    def on_measurement_instance(self, callback):
+        self._measurement_instance_callback = callback
+
     def _metrics_callback(self, mosq, obj, msg):
         data = json.loads(msg.payload)
         m = Measurement(
@@ -31,7 +35,11 @@ class Processor():
             data.get("memory"),
             data.get("bandwidth")
         )
-        self._process_stream(m)
+
+        if self._measurement_instance_callback != None:
+            self._measurement_instance_callback(m.to_dict())
+        else:
+            self._process_stream(m)
 
     def _prepare_measurement_sample(self, measurement):
         instance = np.array([[measurement.cep_latency, measurement.cpu, measurement.memory, 0]])
