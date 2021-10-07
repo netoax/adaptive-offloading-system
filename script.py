@@ -61,14 +61,14 @@ CLOUD_WORKDIR = '/home/netoax/experiment'
 RAW_DATA_LOGS_OUTPUT_DIR = './results/staging'
 LOG_FILE_NAME_FORMAT = '*.txt'
 
-APPLICATIONS = ['ddos-10s']
-
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
 BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str}
 
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']
-DATA_THROUGHPUT_FACTORS = ['0.01', '0.001', '0.0001', '0.0']
-NUMBER_OF_EVENTS_TO_PUBLISH = '500000'
+APPLICATIONS = ['ddos-10s', 'ddos-128s']
+DATA_THROUGHPUT_FACTORS = ['0.01']
+STRATEGIES = ['policy']
+NUMBER_OF_EVENTS_TO_PUBLISH = '200000'
 
 # EXECUTION_MODE = os.environ.get('EXECUTION_MODE') || 'test'
 
@@ -85,40 +85,38 @@ policy_manager = PolicyManager('./analytics/policies.xml', logger, publisher)
     Dependencies start/stop
 '''
 
+#   ***** LOG FILENAMES STANDARD
+#   `node:software:execution:throughput:timestamp`
+#   e.g. `edge:profiler:
+# `
+
 def _start_edge_profiler(client, execution_number):
-    filename = 'edge: profiler-execution-{}-workload-{}'.format(execution_number, datetime.now()).replace(" ", "")
-    cmd = 'export $(cat ./profiler.env) && ./profiler > {}.txt 2>&1 &'.format(filename)
+    filename = 'edge:profiler:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
+    cmd = 'export $(cat ./profiler.env) && ./profiler > {} 2>&1 &'.format(filename)
     stdin, stdout, stderr = client.exec_command(cmd)
     return filename
 
 def _start_cloud_profiler(client, execution_number):
-    filename = 'cloud: profiler-execution-{}-workload-{}'.format(execution_number, datetime.now()).replace(" ", "")
-    cmd = 'cd experiment && export $(cat ./profiler.env) && ./profiler > {}.txt 2>&1 &'.format(filename)
+    filename = 'cloud:profiler:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
+    cmd = 'cd experiment && export $(cat ./profiler.env) && ./profiler > {} 2>&1 &'.format(filename)
     stdin, stdout, stderr = client.exec_command(cmd)
     return filename
 
 def _stop_profiler(client):
     kill_application(client, 'profiler')
 
-def _start_edge_decision_engine(client):
-    filename = 'edge: decision-logs-{}'.format(datetime.now()).replace(" ", "")
+def _start_edge_decision_engine(client, execution_number):
+    filename = 'edge:decision:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
     cmd = 'cd {} && export $(cat ./decision.env) && ./decision > {} 2>&1 &'.format(EDGE_WORKDIR, filename)
     stdin, stdout, stderr = client.exec_command(cmd)
 
-def _start_cloud_decision_engine(client):
-    filename = 'cloud: decision-logs-{}'.format(datetime.now()).replace(" ", "")
+def _start_cloud_decision_engine(client, execution_number):
+    filename = 'cloud:decision:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
     cmd = 'cd {} && export $(cat ./decision.env) && ./decision > {} 2>&1 &'.format(CLOUD_WORKDIR, filename)
     stdin, stdout, stderr = client.exec_command(cmd)
 
 def _stop_decision_engine(client):
     kill_application(client, 'decision')
-
-def _start_cep_application(client, application):
-    cmd = 'sudo systemctl start {}'.format(application)
-    stdin, stdout, stderr = client.exec_command(cmd)
-
-def _stop_cep_application(client):
-    kill_application(client, 'java')
 
 def _start_analytics(client):
     cmd = 'cd analytics && source ./env/bin/activate && python -m main > analytics.txt 2>&1 &'
@@ -126,6 +124,13 @@ def _start_analytics(client):
 
 def _stop_analytics(client):
     kill_application(client, 'python')
+
+def _start_iperf(client):
+    cmd = 'iperf3 -s'
+    stdin, stdout, stderr = client.exec_command(cmd)
+
+def _stop_iperf(client):
+    kill_application(client, 'iperf')
 
 '''
     CEP Application data
@@ -163,53 +168,59 @@ def _publish_application_name(name):
     Experiment Orchestration
 '''
 
-def run_experiment(edgeClient, cloudClient):
-    number_of_executions = 30
-    # TODO: add loop for internal replications (30 executions for increasing statistical power)
-
+def start_dependencies(edgeClient, cloudClient, application, execution):
     _start_analytics(edgeClient)
-    _start_edge_profiler(edgeClient, 0)
-    _start_cloud_profiler(cloudClient, 0)
+    _start_edge_profiler(edgeClient, execution)
+    _start_cloud_profiler(cloudClient, execution)
+    _start_iperf(cloudClient)
 
-    for application in APPLICATIONS:
-        print('Running experiment for application: {}'.format(application))
+    start_cep_application(edgeClient, application)
+    _start_edge_decision_engine(edgeClient, execution)
+    _start_cloud_decision_engine(cloudClient, execution)
 
-        _start_cep_application(edgeClient, application)
-        _start_edge_decision_engine(edgeClient)
-        _start_cloud_decision_engine(cloudClient)
+def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
+    start_dependencies(edgeClient, cloudClient, application, execution)
 
-        sleep(5)
+    sleep(5)
 
-        mqtt.start()
-        _publish_application_name(application)
-        mqtt.stop()
+    mqtt.start()
+    _publish_application_name(application)
+    mqtt.stop()
 
-        sleep(2 * 60)
+    sleep(2 * 60)
 
-        mqtt.start()
-        publish_workload_data(publisher, DATA_THROUGHPUT_FACTORS, NUMBER_OF_EVENTS_TO_PUBLISH)
-        mqtt.stop()
+    mqtt.start()
+    publish_workload_data(publisher, [throughput], NUMBER_OF_EVENTS_TO_PUBLISH)
+    mqtt.stop()
 
-        # print('\tReceiving logs from nodes')
+    stop_cep_application(edgeClient, application)
+    _stop_decision_engine(edgeClient)
+    _stop_decision_engine(cloudClient)
 
-        # _get_profiler_logs(cloudClient, '/'+CLOUD_WORKDIR)
-        # _process_profiler_logs(filename)
-        # _save_flink_overall_metrics(job_id, 0, application)
+    print('\tExtracting logs from nodes')
 
-        print('\tDone')
+    output_dir = RAW_DATA_LOGS_OUTPUT_DIR + '/' + application + '/' + throughput
+    get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
+    get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
 
-        _stop_cep_application(edgeClient)
-        _stop_decision_engine(edgeClient)
-        _stop_decision_engine(cloudClient)
-
-        get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
-        get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
-
-        print('\n')
+    print('Done\n')
 
     _stop_profiler(edgeClient)
     _stop_profiler(cloudClient)
+    _stop_iperf(cloudClient)
     _stop_analytics(edgeClient)
+
+def start_experiment(edgeClient, cloudClient):
+    number_of_executions = 30
+    # TODO: add loop for internal replications (30 executions for increasing statistical power)
+
+    print('Running experiment: strategies x throughputs (30x)')
+
+    for s in STRATEGIES:
+        for f in DATA_THROUGHPUT_FACTORS:
+            for i in range(number_of_executions):
+                print('strategy: {}, throughput: {}, execution: {}'.format(s, f, i+1))
+                run_unit_execution(edgeClient, cloudClient, 'ddos-10s', f, i+1)
 
 
 # --------------- graphs
@@ -222,14 +233,15 @@ def signal_handler(sig, frame):
     mqtt.stop()
     _stop_profiler(edgeClient)
     _stop_profiler(cloudClient)
-    _stop_cep_application(edgeClient)
-    _stop_decision_engine(edg33eClient)
+    kill_application(edgeClient, 'java')
+    _stop_iperf(cloudClient)
+    _stop_decision_engine(edgeClient)
     _stop_decision_engine(cloudClient)
     _stop_analytics(edgeClient)
     sys.exit(0)
 
 signal.signal(signal.SIGINT, signal_handler)
-run_experiment(edgeClient, cloudClient)
+start_experiment(edgeClient, cloudClient)
 cloudClient.close()
 
 # TODO: 1. adicionar categorizacaoo das colunas e gerar CSV consolidado dos dados.
