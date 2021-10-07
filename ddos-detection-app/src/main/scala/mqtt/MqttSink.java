@@ -34,12 +34,19 @@ public class MqttSink<T> extends RichSinkFunction<T> {
         this.topic = topic;
         this.qos = qos;
         this.retain = retain;
+        System.out.println(port);
     }
 
     @Override
     public void close() throws Exception {
         super.close();
         blockingConnection.disconnect();
+    }
+
+    @Override
+    public void invoke(T event) throws Exception {
+        byte[] payload = event.toString().getBytes();
+        blockingConnection.publish(topic, payload, qos, retain);
     }
 
     @Override
