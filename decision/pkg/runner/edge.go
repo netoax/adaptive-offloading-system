@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"strconv"
 	"time"
 
 	"github.com/netoax/adaptive-offloading-system/decision/pkg/flink"
@@ -12,7 +13,11 @@ import (
 	"github.com/netoax/adaptive-offloading-system/decision/pkg/state"
 )
 
-const intervalBetweenOffloads = 5.0
+const (
+	startTimeout            = 5
+	stopTimeout             = 5
+	intervalBetweenOffloads = 10
+)
 
 type PredictionContext struct {
 	Accuracy  float64 `json:"accuracy"`
@@ -20,14 +25,18 @@ type PredictionContext struct {
 	Recall    float64 `json:"recall"`
 	Status    bool    `json:"status"`
 }
+
 type PoliciesContext struct {
 	Violated bool `json:"violated"`
 }
+
 type Edge struct {
 	// dependencies
 	subscriber *mqtt.MessageSubscriber
 	publisher  *mqtt.MessagePublisher
 	flink      *flink.Flink
+
+	mlEnabled bool
 
 	// values holder
 	lastOffloadTime time.Time
@@ -38,23 +47,38 @@ type Edge struct {
 	violated        bool
 
 	// content buffer
-	buffer []string
+	buffer  []string
+	timeout float64
 }
 
 type OffloadingSignal struct {
 	Status bool `json:"status"`
 }
 
-func NewEdge(subscriber *mqtt.MessageSubscriber, publisher *mqtt.MessagePublisher, flink *flink.Flink) *Edge {
+func NewEdge(subscriber *mqtt.MessageSubscriber, publisher *mqtt.MessagePublisher, flink *flink.Flink, timeout float64, mlEnabled bool) *Edge {
 	state := state.NewState("edge")
-	return &Edge{subscriber, publisher, flink, time.Time{}, state, "", make(chan bool), false, false, []string{}}
+	return &Edge{subscriber, publisher, flink, mlEnabled, time.Time{}, state, "", make(chan bool), !mlEnabled, false, []string{}, timeout}
 }
 
 func (e *Edge) hasBuffer() bool { return len(e.buffer) != 0 }
 
 func (e *Edge) Start() {
-	<-e.jobRunning
+	// <-e.jobRunning
 	e.SetupSubscriptions()
+}
+
+func (e *Edge) print() {
+	currentTime := time.Now()
+	oc := &OverallContext{
+		State:      e.state.GetState(),
+		Violated:   e.violated,
+		Fallback:   e.fallback,
+		BufferSize: len(e.buffer),
+		Timestamp:  currentTime.Format("2006-01-02T15:04:05-0700"),
+	}
+
+	encodedResponse, _ := json.Marshal(oc)
+	fmt.Println(string(encodedResponse))
 }
 
 func (e *Edge) SetupSubscriptions() {
@@ -86,11 +110,44 @@ func (e *Edge) isOffloadable(status bool) bool {
 	return false
 }
 
+/*
+* timeout, when?
+* - increase when there's an offloading request, successfully offloading
+* - what about adding in state machine level?
+ */
+
+func (e *Edge) handleOffloadingSignal(payload, topic string) {
+	elapsed := time.Since(e.lastOffloadTime)
+	if elapsed.Minutes() < e.timeout {
+		return
+	}
+	// fmt.Println(elapsed.Minutes())
+	status := e.updatePrediction(payload)
+	isOffloadable := e.isOffloadable(status)
+	e.print()
+	if e.shouldStopOffloading(isOffloadable) {
+		e.publisher.PublishOffloadingStop()
+		e.updateTimeout()
+		return
+	}
+
+	if e.state.IsInProgress() {
+		e.updateTimeout()
+		return
+	}
+
+	if e.shouldStartOffloading(isOffloadable) {
+		e.publisher.PublishOffloadingRequest()
+		e.state.To("OFF_REQ")
+		e.updateTimeout()
+	}
+}
+
 func (e *Edge) updatePrediction(payload string) bool {
 	context := &PredictionContext{}
 	json.Unmarshal([]byte(payload), context)
 	e.fallback = !e.isModelHealth(context) // TODO: add concept drift
-	log.Printf("edge: fallback status is %t", e.fallback)
+	// log.Printf("edge: fallback status is %t", e.fallback)
 	return context.Status
 }
 
@@ -99,11 +156,15 @@ func (e *Edge) shouldStopOffloading(status bool) bool {
 		return false
 	}
 
-	if e.fallback && e.violated {
+	if !e.fallback {
+		return !status
+	}
+
+	if !e.violated {
 		return true
 	}
 
-	return !status
+	return false
 }
 
 func (e *Edge) shouldStartOffloading(status bool) bool {
@@ -111,46 +172,53 @@ func (e *Edge) shouldStartOffloading(status bool) bool {
 		return false
 	}
 
-	if e.fallback && e.violated {
+	if !e.fallback {
+		return status
+	}
+
+	if e.violated {
 		return true
 	}
 
-	return status
+	return false
 }
 
 func (e *Edge) updateTimeout() {
-	if e.state.IsInProgress() {
-		e.lastOffloadTime = time.Now()
-	}
+	e.lastOffloadTime = time.Now()
 }
 
-func (e *Edge) handleOffloadingSignal(payload, topic string) {
-	elapsed := time.Since(e.lastOffloadTime)
-	if elapsed.Minutes() < intervalBetweenOffloads {
-		return
-	}
-	fmt.Println(elapsed.Minutes())
+func (e *Edge) handlePolicyStatusUpdate(payload, topic string) {
+	context := &PoliciesContext{}
+	json.Unmarshal([]byte(payload), context)
 
-	status := e.updatePrediction(payload)
+	e.violated = context.Violated
+	if !e.mlEnabled && context.Violated {
+		e.tryOffloading(context.Violated)
+	}
+
+	// e.print()
+	// log.Printf("edge: policy violation status update to %t", e.violated)
+}
+
+func (e *Edge) tryOffloading(status bool) {
 	isOffloadable := e.isOffloadable(status)
+	e.print()
 	if e.shouldStopOffloading(isOffloadable) {
 		e.publisher.PublishOffloadingStop()
 		e.updateTimeout()
 		return
 	}
 
-	e.updateTimeout()
+	if e.state.IsInProgress() {
+		e.updateTimeout()
+		return
+	}
+
 	if e.shouldStartOffloading(isOffloadable) {
 		e.publisher.PublishOffloadingRequest()
 		e.state.To("OFF_REQ")
+		e.updateTimeout()
 	}
-}
-
-func (e *Edge) handlePolicyStatusUpdate(payload, topic string) {
-	context := &PoliciesContext{}
-	json.Unmarshal([]byte(payload), context)
-	e.violated = context.Violated
-	log.Printf("edge: policy violation status update to %t", e.violated)
 }
 
 func (e *Edge) handleConceptDrift(payload, topic string) {
@@ -187,7 +255,8 @@ func (e *Edge) handleApplicationData(payload, topic string) {
 	}
 
 	if e.hasBuffer() {
-		log.Printf("edge: sending %d objects from buffer", len(e.buffer))
+		e.print()
+		// log.Printf("edge: sending %d objects from buffer", len(e.buffer))
 		e.sendBuffer(topic)
 	}
 
@@ -195,25 +264,37 @@ func (e *Edge) handleApplicationData(payload, topic string) {
 }
 
 func (e *Edge) handleOffloadingAllowed(payload, topic string) {
-	e.state.To("OFF_ALLOWED")
+	allowed, _ := strconv.ParseBool(payload)
+	if !allowed {
+		e.state.To("LOCAL")
+		e.print()
+		// log.Printf("edge: offloading not allowed")
+		return
+	}
 
-	start := time.Now()
+	err := e.state.To("OFF_ALLOWED")
+	if err != nil {
+		log.Printf(err.Error())
+		return
+	}
+
+	// start := time.Now()
 	state, _ := e.flink.GetState()
-	elapsed := time.Since(start)
+	// elapsed := time.Since(start)
 
-	log.Printf("edge: get state took %s", elapsed)
+	// log.Printf("edge: get state took %s", elapsed)
 
 	e.publisher.PublishOffloadingState(state)
-
+	e.print()
 	// log.Println("edge: state sent to the cloud")
 }
 
 func (e *Edge) handleStateConfirmed(payload, topic string) {
 	e.state.To("OFF_IN_PROGRESS")
-	start := time.Now()
+	// start := time.Now()
 	e.flink.StopStandaloneJob(e.application)
-	elapsed := time.Since(start)
-	log.Printf("edge: stop job took %s", elapsed)
+	// elapsed := time.Since(start)
+	// log.Printf("edge: stop job took %s", elapsed)
 }
 
 func (e *Edge) handleStopConfirmed(payload, topic string) {
@@ -223,10 +304,11 @@ func (e *Edge) handleStopConfirmed(payload, topic string) {
 		return
 	}
 
-	log.Println("edge: state written, starting again")
+	// log.Println("edge: state written, starting again")
+	e.print()
 	jobId, _ := e.flink.StartStandaloneJob(e.application) // TODO: move this to before confirmation?
 	e.publisher.PublishJobID(jobId)
-	e.state.To("EMPTY")
+	e.state.To("LOCAL")
 }
 
 func (e *Edge) SetApplication(application, topic string) {

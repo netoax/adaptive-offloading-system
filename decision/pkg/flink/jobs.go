@@ -36,14 +36,6 @@ func (f *Flink) GetJobs() ([]*Job, error) {
 	return response["jobs"], nil
 }
 
-// func (f *Flink) RunJob(savepointPath, parallelism, name string) {
-// 	if f.executionMode == "edge" {
-// 		f.StartStandaloneJob(name)
-// 	} else if f.executionMode == "cloud" {
-// 		f.RunJobInCluster(savepointPath, parallelism)
-// 	}
-// }
-
 func (f *Flink) RunJob(savepointPath, parallelism string) error {
 	parameters := url.Values{}
 	parameters.Add("entry-class", "main")
@@ -51,10 +43,13 @@ func (f *Flink) RunJob(savepointPath, parallelism string) error {
 	parameters.Add("parallelism", parallelism)
 	f.address.RawQuery = parameters.Encode()
 	f.address.Path = "/jars/" + f.jarId + "/run"
+	fmt.Println(f.address.String())
 	resp, err := http.Post(f.address.String(), "application/json", nil)
 	if err != nil {
 		return err
 	}
+
+	fmt.Println(resp)
 
 	response := &RunJobResponse{}
 	decoder := json.NewDecoder(resp.Body)

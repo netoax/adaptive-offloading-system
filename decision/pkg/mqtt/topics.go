@@ -13,6 +13,7 @@ var (
 	// contextual data
 	policyStatusUpdate     = "/policies/status"
 	conceptDriftOccurrence = "/prediction/drift"
+	profilingMetrics       = "/profiling/metrics"
 
 	// application
 	dataSent        = "/application/+/data"

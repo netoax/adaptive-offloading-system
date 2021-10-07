@@ -3,6 +3,7 @@ package main
 import (
 	"log"
 	"os"
+	"strconv"
 
 	"github.com/netoax/adaptive-offloading-system/decision/pkg/flink"
 	"github.com/netoax/adaptive-offloading-system/decision/pkg/mqtt"
@@ -17,10 +18,12 @@ type config struct {
 	jarId             string
 	standaloneJarPath string
 	app               string
+	timeout           float64
+	mlEnabled         bool
 }
 
 func getConfig() config {
-	config := config{"edge", "tcp://localhost:1883", "tcp://localhost:1883", "http://localhost:8081", "", "", ""}
+	config := config{"edge", "tcp://localhost:1883", "tcp://localhost:1883", "http://localhost:8081", "", "", "", 2.0, false}
 
 	if os.Getenv("EXECUTION_MODE") != "" {
 		config.executionMode = os.Getenv("EXECUTION_MODE")
@@ -44,6 +47,16 @@ func getConfig() config {
 
 	if os.Getenv("REMOTE_ADDRESS") != "" {
 		config.remoteAddress = os.Getenv("REMOTE_ADDRESS")
+	}
+
+	if os.Getenv("OFFLOADING_TIMEOUT") != "" {
+		value, _ := strconv.ParseFloat(os.Getenv("OFFLOADING_TIMEOUT"), 64)
+		config.timeout = value
+	}
+
+	if os.Getenv("ML_ENABLED") != "" {
+		value, _ := strconv.ParseBool(os.Getenv("ML_ENABLED"))
+		config.mlEnabled = value
 	}
 
 	return config
@@ -76,7 +89,7 @@ func main() {
 	var test chan bool
 
 	if config.executionMode == "edge" {
-		edgeRunner := runner.NewEdge(subscriber, publisher, flink)
+		edgeRunner := runner.NewEdge(subscriber, publisher, flink, config.timeout, config.mlEnabled)
 		subscriber.OnApplicationName(edgeRunner.SetApplication)
 		edgeRunner.Start()
 	} else {
