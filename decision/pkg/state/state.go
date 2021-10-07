@@ -1,18 +1,23 @@
 package state
 
-import "log"
+import (
+	"encoding/json"
+	"fmt"
+	"log"
+	"time"
+)
 
 var edgeStates = map[string]string{
-	"EMPTY":           "OFF_REQ",
+	"LOCAL":           "OFF_REQ",
 	"OFF_REQ":         "OFF_ALLOWED",
 	"OFF_ALLOWED":     "OFF_IN_PROGRESS",
-	"OFF_IN_PROGRESS": "EMPTY",
+	"OFF_IN_PROGRESS": "LOCAL",
 }
 
 var cloudStates = map[string]string{
-	"EMPTY":           "OFF_ALLOWED",
+	"LOCAL":           "OFF_ALLOWED",
 	"OFF_ALLOWED":     "OFF_IN_PROGRESS",
-	"OFF_IN_PROGRESS": "EMPTY",
+	"OFF_IN_PROGRESS": "LOCAL",
 }
 
 type State struct {
@@ -26,10 +31,10 @@ func NewState(mode string) *State {
 
 	switch mode {
 	case "edge":
-		state = &State{mode, edgeStates, "EMPTY"}
+		state = &State{mode, edgeStates, "LOCAL"}
 		break
 	case "cloud":
-		state = &State{mode, cloudStates, "EMPTY"}
+		state = &State{mode, cloudStates, "LOCAL"}
 		break
 	default:
 		log.Println("unsupported mode: ", mode)
@@ -38,22 +43,37 @@ func NewState(mode string) *State {
 
 	return state
 }
-
-func (s *State) To(state string) {
-	allowed := s.transitions[s.state]
-	if allowed != state {
-		log.Printf("%s: unable to transit from %s to %s", s.mode, s.state, state)
-		return
+func (s *State) printTransition(actual, to string) {
+	currentTime := time.Now()
+	resp := map[string]interface{}{
+		"timestamp": currentTime.Format("2006-01-02T15:04:05-0700"),
+		"type":      "state-transition",
+		"actual":    actual,
+		"to":        to,
 	}
 
-	log.Printf("%s: state update: %s -> %s", s.mode, s.state, state)
+	encodedResponse, _ := json.Marshal(resp)
+	fmt.Println(string(encodedResponse))
+}
+
+func (s *State) To(state string) error {
+	allowed := s.transitions[s.state]
+	if allowed != state && state != "LOCAL" {
+		// log.Printf("%s: unable to transit from %s to %s", s.mode, s.state, state)
+		return fmt.Errorf("%s: unable to transit from %s to %s", s.mode, s.state, state)
+	}
+
+	// log.Printf("%s: state update: %s -> %s", s.mode, s.state, state)
+	s.printTransition(s.state, state)
+
 	s.state = state
+	return nil
 }
 
 func (s *State) IsAllowed() bool { return s.state == "OFF_ALLOWED" }
 
 func (s *State) IsInProgress() bool { return s.state == "OFF_IN_PROGRESS" }
 
-func (s *State) IsEmpty() bool { return s.state == "EMPTY" }
+func (s *State) IsEmpty() bool { return s.state == "LOCAL" }
 
 func (s *State) GetState() string { return s.state }

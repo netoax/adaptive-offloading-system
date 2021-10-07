@@ -1,5 +1,7 @@
 package mqtt
 
+import "strconv"
+
 type Publisher interface {
 	Publish(topic string, data interface{}) error
 }
@@ -13,8 +15,9 @@ func NewPublisher(local *Broker, remote *Broker) *MessagePublisher {
 	return &MessagePublisher{local, remote}
 }
 
-func (p *MessagePublisher) PublishOffloadingAllowed() error {
-	return p.Publish(p.local, offloadingAllowed, "")
+func (p *MessagePublisher) PublishOffloadingAllowed(status bool) error {
+	st := strconv.FormatBool(status)
+	return p.Publish(p.local, offloadingAllowed, st)
 }
 
 func (p *MessagePublisher) PublishOffloadingRequest() error {
