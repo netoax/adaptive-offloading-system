@@ -26,7 +26,7 @@ class MessagePublisher():
         self.mqtt.publish('/application/traffic/data', payload)
 
     def publish_network_data(self, payload):
-        self.mqtt.publish('/application/network/data', payload)
+        self.mqtt.publish('/cep/application/network/data', payload)
 
     def publish_weather_data(self, payload):
         self.mqtt.publish('/application/weather/data', payload)
@@ -36,3 +36,6 @@ class MessagePublisher():
 
     def publish_policy_violation(self, payload):
         self.mqtt.publish('/policies/status', payload)
+
+    def publish_application_name(self, payload):
+        self.mqtt.publish('/application/name', payload)

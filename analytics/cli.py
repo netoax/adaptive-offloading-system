@@ -53,7 +53,7 @@ def prof():
     metrics = {
         "bandwidth": 12.4,
         "rtt": 8.4,
-        "cpu": 70,
+        "cpu": 50,
         "memory": 70,
         "cepLatency": 50
     }
@@ -105,22 +105,15 @@ def drift():
 
 def publish_botnet_data(factor='5', number='100000', chunk='100000'):
     reader = pd.read_csv(
-        '../test.csv',
+        '../192.168.100.149.csv',
         usecols=['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state'],
-        dtype={'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str},
         nrows=int(number),
-        # converters={"sport": lambda x: int(str(x), 16)},
-        chunksize=100000
+        chunksize=100000,
     )
     now = time.time()
     count = 0
     for df in reader:
-        df = df.dropna()
-        df = df[df['sport'] != '0x0303']
-        df = df[df['dport'] != '0x5000']
-
         for index, row in df.iterrows():
-            print(row)
             count = count + 1
             data = {
                 "timestamp": row['stime'],
