@@ -58,8 +58,13 @@ func (nps *networkProfServer) Start() error {
 
 func (npc *NetworkProfClient) GetBandwidthMbps() (float64, error) {
 	npc.Start()
-	result := npc.client.Report().End.SumReceived.BitsPerSecond / 1000000
-	return float64(int(result*100)) / 100, nil
+	result := npc.client.Report()
+	if result == nil {
+		return
+	}
+
+	bitsPerSecond := result.End.SumReceived.BitsPerSecond / 1000000
+	return float64(int(bitsPerSecond*100)) / 100, nil
 }
 
 func (npc *NetworkProfClient) GetAverageRtt() (float64, error) {
