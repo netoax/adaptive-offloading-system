@@ -23,7 +23,6 @@ public class MqttSink<T> extends RichSinkFunction<T> {
         this(host, 1883, topic, QoS.AT_LEAST_ONCE, false);
     }
 
-
     public MqttSink(String host, int port, String topic)  {
         this(host, port, topic, QoS.AT_LEAST_ONCE, false);
     }
@@ -34,7 +33,6 @@ public class MqttSink<T> extends RichSinkFunction<T> {
         this.topic = topic;
         this.qos = qos;
         this.retain = retain;
-        System.out.println(port);
     }
 
     @Override
