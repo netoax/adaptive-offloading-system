@@ -16,7 +16,7 @@ var (
 	profilingMetrics       = "/profiling/metrics"
 
 	// application
-	dataSent        = "/application/+/data"
+	dataSent        = "/cep/application/+/data"
 	applicationName = "/application/name"
 	// dataToCep = "/cep/application/+/data"
 )

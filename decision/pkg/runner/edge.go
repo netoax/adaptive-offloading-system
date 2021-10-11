@@ -63,18 +63,19 @@ func NewEdge(subscriber *mqtt.MessageSubscriber, publisher *mqtt.MessagePublishe
 func (e *Edge) hasBuffer() bool { return len(e.buffer) != 0 }
 
 func (e *Edge) Start() {
-	// <-e.jobRunning
+	<-e.jobRunning
 	e.SetupSubscriptions()
 }
 
 func (e *Edge) print() {
 	currentTime := time.Now()
 	oc := &OverallContext{
-		State:      e.state.GetState(),
-		Violated:   e.violated,
-		Fallback:   e.fallback,
-		BufferSize: len(e.buffer),
-		Timestamp:  currentTime.Format("2006-01-02T15:04:05-0700"),
+		State:       e.state.GetState(),
+		Violated:    e.violated,
+		Fallback:    e.fallback,
+		BufferSize:  len(e.buffer),
+		Timestamp:   currentTime.Format("2006-01-02T15:04:05-0700"),
+		Application: e.application,
 	}
 
 	encodedResponse, _ := json.Marshal(oc)
@@ -192,11 +193,11 @@ func (e *Edge) handlePolicyStatusUpdate(payload, topic string) {
 	json.Unmarshal([]byte(payload), context)
 
 	e.violated = context.Violated
-	if !e.mlEnabled && context.Violated {
+	if !e.mlEnabled {
 		e.tryOffloading(context.Violated)
 	}
 
-	// e.print()
+	e.print()
 	// log.Printf("edge: policy violation status update to %t", e.violated)
 }
 
@@ -268,7 +269,6 @@ func (e *Edge) handleOffloadingAllowed(payload, topic string) {
 	if !allowed {
 		e.state.To("LOCAL")
 		e.print()
-		// log.Printf("edge: offloading not allowed")
 		return
 	}
 
@@ -278,23 +278,19 @@ func (e *Edge) handleOffloadingAllowed(payload, topic string) {
 		return
 	}
 
-	// start := time.Now()
 	state, _ := e.flink.GetState()
-	// elapsed := time.Since(start)
-
-	// log.Printf("edge: get state took %s", elapsed)
-
 	e.publisher.PublishOffloadingState(state)
 	e.print()
-	// log.Println("edge: state sent to the cloud")
 }
 
 func (e *Edge) handleStateConfirmed(payload, topic string) {
+	err := e.flink.StopStandaloneJob(e.application)
+	if err != nil {
+		log.Printf("edge: failed to stop local job: ", err)
+		return
+	}
+
 	e.state.To("OFF_IN_PROGRESS")
-	// start := time.Now()
-	e.flink.StopStandaloneJob(e.application)
-	// elapsed := time.Since(start)
-	// log.Printf("edge: stop job took %s", elapsed)
 }
 
 func (e *Edge) handleStopConfirmed(payload, topic string) {
@@ -304,7 +300,6 @@ func (e *Edge) handleStopConfirmed(payload, topic string) {
 		return
 	}
 
-	// log.Println("edge: state written, starting again")
 	e.print()
 	jobId, _ := e.flink.StartStandaloneJob(e.application) // TODO: move this to before confirmation?
 	e.publisher.PublishJobID(jobId)
@@ -317,4 +312,5 @@ func (e *Edge) SetApplication(application, topic string) {
 
 	e.jobRunning <- true
 	e.application = application
+	e.print()
 }
