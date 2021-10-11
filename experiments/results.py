@@ -24,7 +24,7 @@ efdt = ExtremelyFastDecisionTreeClassifier()
 nb = NaiveBayes()
 knn = KNNClassifier()
 
-RESULTS_PATH = './results/staging/ddos-10s'
+RESULTS_PATH = '../../results/staging/ddos-10s'
 
 def _get_profiler_logs(type, filename, data):
     file = open('{}/{}.txt'.format(RESULTS_PATH, filename))
@@ -59,7 +59,7 @@ def _prepare_profiler_logs(type):
     # return data
 
 def _create_boxplot_charts():
-    df = pd.read_csv('./results/formatted/edge/grouped_profiler_data.csv')
+    df = pd.read_csv('../../results/formatted/edge/grouped_profiler_data.csv')
     data = df['cpu'].to_list()
 
     fig = plt.figure(figsize=(10, 7))
