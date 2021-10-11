@@ -44,10 +44,11 @@ func (f *Flink) GetState() ([]byte, error) {
 	jobs, err := f.GetJobs()
 	if err != nil {
 		log.Println("cannot list Flink jobs")
+		return nil, err
 	}
 
 	jobId := jobs[0].ID
-	f.jobId = jobId // TODO: ss
+	f.jobId = jobId
 
 	triggerId, err := f.TriggerSavepoint(jobId)
 	if err != nil {
