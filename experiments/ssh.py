@@ -1,5 +1,6 @@
 import paramiko
 from scp import SCPClient, SCPException
+from pathlib import Path
 
 def start_cep_application(client, application):
     cmd = 'sudo systemctl start {}'.format(application)
@@ -30,6 +31,7 @@ def start_ssh_connection(hostname, user):
 def get_logs(client, dir, pattern, output):
     stdin, stdout, stderr = client.exec_command('ls {}/{}'.format(dir, pattern))
     result = stdout.read().split()
+    Path(output).mkdir(parents=True, exist_ok=True)
     scp = SCPClient(client.get_transport())
     for file in result:
         file_get = scp.get(file, output)

@@ -58,7 +58,7 @@ CLOUD_NODE_HOSTNAME = '192.168.3.7'
 CLOUD_NODE_SSH_USERNAME = 'netoax'
 CLOUD_WORKDIR = '/home/netoax/experiment'
 
-RAW_DATA_LOGS_OUTPUT_DIR = './results/staging'
+RAW_DATA_LOGS_OUTPUT_DIR = '../results/staging'
 LOG_FILE_NAME_FORMAT = '*.txt'
 
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
@@ -66,7 +66,7 @@ BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 
 
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']
 APPLICATIONS = ['ddos-10s', 'ddos-128s']
-DATA_THROUGHPUT_FACTORS = ['0.01']
+DATA_THROUGHPUT_FACTORS = ['0.01', '0.001', '0.0001']
 STRATEGIES = ['policy']
 NUMBER_OF_EVENTS_TO_PUBLISH = '200000'
 
@@ -162,7 +162,10 @@ def _save_flink_overall_metrics(job_id, execution_number, application):
     file.close()
 
 def _publish_application_name(name):
+    mqtt.start()
     publisher.publish_application_name(name)
+    mqtt.stop()
+    sleep(2 * 60)
 
 '''
     Experiment Orchestration
@@ -178,16 +181,12 @@ def start_dependencies(edgeClient, cloudClient, application, execution):
     _start_edge_decision_engine(edgeClient, execution)
     _start_cloud_decision_engine(cloudClient, execution)
 
-def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
-    start_dependencies(edgeClient, cloudClient, application, execution)
-
     sleep(5)
 
-    mqtt.start()
+# save to -> ../results/staging/:execution/:application/:throughput/file.txt
+def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
+    start_dependencies(edgeClient, cloudClient, application, execution)
     _publish_application_name(application)
-    mqtt.stop()
-
-    sleep(2 * 60)
 
     mqtt.start()
     publish_workload_data(publisher, [throughput], NUMBER_OF_EVENTS_TO_PUBLISH)
@@ -199,7 +198,8 @@ def run_unit_execution(edgeClient, cloudClient, application, throughput, executi
 
     print('\tExtracting logs from nodes')
 
-    output_dir = RAW_DATA_LOGS_OUTPUT_DIR + '/' + application + '/' + throughput
+    output_dir = f"{RAW_DATA_LOGS_OUTPUT_DIR}/{execution}/{application}/{throughput}"
+    # output_dir = RAW_DATA_LOGS_OUTPUT_DIR + '/' + application + '/' + throughput
     get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
     get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
 
@@ -211,7 +211,7 @@ def run_unit_execution(edgeClient, cloudClient, application, throughput, executi
     _stop_analytics(edgeClient)
 
 def start_experiment(edgeClient, cloudClient):
-    number_of_executions = 30
+    number_of_executions = 1
     # TODO: add loop for internal replications (30 executions for increasing statistical power)
 
     print('Running experiment: strategies x throughputs (30x)')
