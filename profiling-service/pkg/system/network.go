@@ -28,7 +28,7 @@ func NewNetworkProfilerServer() networkProfServer {
 func (npc *NetworkProfClient) Start() error {
 	c := iperf.NewClient(npc.address)
 	c.SetStreams(1)
-	c.SetTimeSec(10)
+	c.SetTimeSec(5)
 	c.SetInterval(1)
 
 	npc.client = c
@@ -60,7 +60,7 @@ func (npc *NetworkProfClient) GetBandwidthMbps() (float64, error) {
 	npc.Start()
 	result := npc.client.Report()
 	if result == nil {
-		return
+		return 0.0, nil
 	}
 
 	bitsPerSecond := result.End.SumReceived.BitsPerSecond / 1000000
