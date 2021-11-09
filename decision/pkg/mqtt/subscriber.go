@@ -67,7 +67,7 @@ func (p *MessageSubscriber) OnProfilingMetrics(handler func(string, string)) err
 // Subscribe ...
 func (p *MessageSubscriber) Subscribe(broker *Broker, topic string, handler func(string, string)) error {
 	messageHandler := func(client MQTT.Client, msg MQTT.Message) {
-		handler(string(msg.Payload()), msg.Topic())
+		go handler(string(msg.Payload()), msg.Topic())
 	}
 
 	token := broker.client.Subscribe(topic, 0, messageHandler)
