@@ -90,14 +90,24 @@ def prepare_dataset():
         chunksize=100000,
     )
 
-    header = True
     for chunk in reader:
-        chunk = clear_df(chunk)
-        attacker = ATTACK_MACHINES[0]
-        filtered = filter_by_attacker(chunk, attacker)
-        print(filtered.head())
-        filtered.to_csv('./{}.csv'.format(attacker), mode='a', header=header)
-        header = False
+        filtered.to_csv('./dataset_with_header.csv'.format(attacker), mode='a', header=False)
+
+def prepare_dataset_2():
+    fout=open("file_with_header.csv","a")
+    for line in open("header.csv"):
+        fout.write(line)
+        fout.write('\n')
+    fout.close()
+
+    reader = pd.read_csv(
+        './dataset.csv',
+        chunksize=100000,
+    )
+
+    for chunk in reader:
+        chunk.to_csv('./file_with_header.csv', mode='a', header=False)
+
 
 def evaluate_models(dataset_file, output_file):
     df = pd.read_csv(dataset_file, usecols=DATASET_COLUMNS)
@@ -110,7 +120,7 @@ def evaluate_models(dataset_file, output_file):
                                     metrics=METRICS)
     evaluator.evaluate(stream, model=models, model_names=MODEL_NAMES)
 
-# evaluate_models('./results/random_data_labeled.csv', './results/ml/ml.csv')
+evaluate_models('./results/random_data_labeled.csv', './results/ml/ml.csv')
 # generate_evaluation_charts('accuracy', './results/ml')
 # generate_evaluation_charts('precision', './results/ml')
 # generate_evaluation_charts('recall', './results/ml')
@@ -120,3 +130,4 @@ def evaluate_models(dataset_file, output_file):
 # print('is data normal: ', _is_data_normal('./results/random_data_labeled.csv'))
 
 # prepare_dataset()
+# prepare_dataset_2()

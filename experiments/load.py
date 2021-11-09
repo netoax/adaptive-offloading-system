@@ -7,72 +7,63 @@
 from time import sleep
 from rich import print
 
-from data import *
-from ssh import *
-from flink import *
+from experiments.data import *
+from experiments.ssh import *
+from experiments.flink import *
 
 from analytics.network.mqtt import MQTT
 from analytics.network.publisher import MessagePublisher
 from analytics.network.subscriber import MessageSubscriber
 
-# DATA_THROUGHPUT_FACTORS = ['0.1', '0.01', '0.001', '0.0001']
-DATA_THROUGHPUT_FACTORS = ['0.0001']
-NUMBER_OF_EVENTS_TO_PUBLISH = '200000'
-NUMBER_OF_EXECUTIONS = 1
+from experiments.constants import *
 
-LOG_FILE_NAME_FORMAT = '*.nmon'
-RAW_DATA_LOGS_OUTPUT_DIR = './results/nmon/'
+SLEEP_INTERVAL_SECONDS = 80
 
-EDGE_NODE_HOSTNAME = '192.168.3.11'
-EDGE_NODE_SSH_USERNAME = 'pi'
-EDGE_WORKDIR = '/home/pi/'
-
-CEP_APPLICATION = 'ddos-128s'
-
-SLEEP_INTERVAL_SECONDS = 120
-
-mqtt_local_hostname = '192.168.3.11'
-mqtt = MQTT(hostname=mqtt_local_hostname, port=1883)
-publisher = MessagePublisher(mqtt)
-subscriber = MessageSubscriber(mqtt)
-
-client = start_ssh_connection(EDGE_NODE_HOSTNAME, EDGE_NODE_SSH_USERNAME)
-
-received_response_events = 0
-
-def _parse_flink_response(response):
-    return {
-        "recordsSent": response['vertices'][0]['metrics']['write-records']
-    }
-
-def count_received_response_data(mosq, obj, msg):
-    print('receiving response: ', msg)
-    received_response_events += 1
-
-for n in range(NUMBER_OF_EXECUTIONS):
-    print('CEP application loading test')
+def run_load_experiment(client, mqtt, publisher, subscriber, application, hostname, workdir):
+    print('loading test:', application)
     start_nmon(client)
+    # mqtt.start()
 
-    sleep(SLEEP_INTERVAL_SECONDS)
-    start_cep_application(client, CEP_APPLICATION)
-    sleep(SLEEP_INTERVAL_SECONDS)
-    n1 = get_number_of_starts_cep(client)
+    for factor in DATA_THROUGHPUT_FACTORS:
+        sleep(10)
+        start_cep_application(client, application)
+        sleep(SLEEP_INTERVAL_SECONDS)
+        n1 = get_number_of_starts_cep(client)
 
-    mqtt.start()
-    subscriber.on_cep_response(count_received_response_data)
-    publish_workload_data(publisher, DATA_THROUGHPUT_FACTORS, NUMBER_OF_EVENTS_TO_PUBLISH)
+        publish_workload_data(mqtt, publisher, subscriber, [factor], hostname, EXPERIMENT_EXECUTION_TIME)
 
-    sleep(SLEEP_INTERVAL_SECONDS)
-    get_logs(client, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
-    # response = save_flink_overall_metrics(EDGE_NODE_HOSTNAME, n, CEP_APPLICATION)
-    # parsed_response = _parse_flink_response(response)
-    n2 = get_number_of_starts_cep(client)
+        sleep(10)
+        get_logs(client, workdir, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)
+        # response = save_flink_overall_metrics(EDGE_NODE_HOSTNAME, n, CEP_APPLICATION)
+        # parsed_response = _parse_flink_response(response)
+        n2 = get_number_of_starts_cep(client)
 
-    stop_cep_application(client, CEP_APPLICATION)
-    sleep(SLEEP_INTERVAL_SECONDS)
-    kill_application(client, 'nmon')
-    mqtt.stop()
+        stop_cep_application(client, application)
+        sleep(15)
+        kill_application(client, 'nmon')
 
-    print('\rrestarts: ', n2 - n1)
-    print('complex events received: ', received_response_events)
-    received_response_events=0
+        print('\trestarts: ', n2 - n1)
+        print('\n')
+
+    # mqtt.stop()
+
+def run_node_execution(node, info):
+    print('target:', node)
+    ssh = start_ssh_connection(info['hostname'], info['username'])
+    mqtt_pub = MQTT(hostname=info['hostname'], port=1883)
+    mqtt_sub = MQTT(hostname=info['hostname'], port=1883)
+
+    mqtt_pub.start()
+    mqtt_sub.start()
+
+    publisher = MessagePublisher(mqtt_pub)
+    subscriber = MessageSubscriber(mqtt_sub)
+
+    # run_load_experiment(ssh, mqtt_sub, publisher, subscriber, CEP_APPLICATION_COMPLEX, info['hostname'], info['workdir'])
+    run_load_experiment(ssh, mqtt_sub, publisher, subscriber, CEP_APPLICATION_SIMPLE, info['hostname'], info['workdir'])
+
+def start_experiment():
+    for node in LOAD_EXPERIMENTS_NODES:
+        run_node_execution(node, LOAD_EXPERIMENTS_NODES[node])
+
+start_experiment()

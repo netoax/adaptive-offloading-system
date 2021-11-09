@@ -158,4 +158,4 @@ def process_staging_files():
 # process_nmon_files()
 
 # _prepare_profiler_logs('edge')
-_create_boxplot_charts()
+# _create_boxplot_charts()
