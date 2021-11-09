@@ -25,8 +25,8 @@ from analytics.network.mqtt import MQTT
 from analytics.policy_manager import PolicyManager
 from analytics.models.metric import Measurement
 
-from ssh import *
-from data import *
+from experiments.ssh import *
+from experiments.data import *
 
 
 '''
@@ -58,7 +58,7 @@ CLOUD_NODE_HOSTNAME = '192.168.3.7'
 CLOUD_NODE_SSH_USERNAME = 'netoax'
 CLOUD_WORKDIR = '/home/netoax/experiment'
 
-RAW_DATA_LOGS_OUTPUT_DIR = '../results/staging'
+RAW_DATA_LOGS_OUTPUT_DIR = '/Users/jneto/msc/workspace/results/staging'
 LOG_FILE_NAME_FORMAT = '*.txt'
 
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
@@ -66,9 +66,9 @@ BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 
 
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']
 APPLICATIONS = ['ddos-10s', 'ddos-128s']
-DATA_THROUGHPUT_FACTORS = ['0.01', '0.001', '0.0001']
+DATA_THROUGHPUT_FACTORS = [500]
 STRATEGIES = ['policy']
-NUMBER_OF_EVENTS_TO_PUBLISH = '200000'
+NUMBER_OF_EVENTS_TO_PUBLISH = '100000'
 
 # EXECUTION_MODE = os.environ.get('EXECUTION_MODE') || 'test'
 
@@ -183,6 +183,20 @@ def start_dependencies(edgeClient, cloudClient, application, execution):
 
     sleep(5)
 
+def stop_and_get_logs(edgeClient, cloudClient, application, throughput, execution):
+    stop_cep_application(edgeClient, application)
+    _stop_decision_engine(edgeClient)
+    _stop_decision_engine(cloudClient)
+
+    output_dir = f"{RAW_DATA_LOGS_OUTPUT_DIR}/{execution}/{application}/{throughput}"
+    get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
+    get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
+
+    _stop_profiler(edgeClient)
+    _stop_profiler(cloudClient)
+    _stop_iperf(cloudClient)
+    _stop_analytics(edgeClient)
+
 # save to -> ../results/staging/:execution/:application/:throughput/file.txt
 def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
     start_dependencies(edgeClient, cloudClient, application, execution)
@@ -192,28 +206,13 @@ def run_unit_execution(edgeClient, cloudClient, application, throughput, executi
     publish_workload_data(publisher, [throughput], NUMBER_OF_EVENTS_TO_PUBLISH)
     mqtt.stop()
 
-    stop_cep_application(edgeClient, application)
-    _stop_decision_engine(edgeClient)
-    _stop_decision_engine(cloudClient)
-
     print('\tExtracting logs from nodes')
-
-    output_dir = f"{RAW_DATA_LOGS_OUTPUT_DIR}/{execution}/{application}/{throughput}"
-    # output_dir = RAW_DATA_LOGS_OUTPUT_DIR + '/' + application + '/' + throughput
-    get_logs(edgeClient, EDGE_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
-    get_logs(cloudClient, CLOUD_WORKDIR, LOG_FILE_NAME_FORMAT, output_dir)
-
+    stop_and_get_logs(edgeClient, cloudClient, application, throughput, execution)
     print('Done\n')
 
-    _stop_profiler(edgeClient)
-    _stop_profiler(cloudClient)
-    _stop_iperf(cloudClient)
-    _stop_analytics(edgeClient)
 
 def start_experiment(edgeClient, cloudClient):
     number_of_executions = 1
-    # TODO: add loop for internal replications (30 executions for increasing statistical power)
-
     print('Running experiment: strategies x throughputs (30x)')
 
     for s in STRATEGIES:
@@ -221,7 +220,6 @@ def start_experiment(edgeClient, cloudClient):
             for i in range(number_of_executions):
                 print('strategy: {}, throughput: {}, execution: {}'.format(s, f, i+1))
                 run_unit_execution(edgeClient, cloudClient, 'ddos-10s', f, i+1)
-
 
 # --------------- graphs
 
