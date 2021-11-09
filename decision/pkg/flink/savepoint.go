@@ -11,12 +11,7 @@ import (
 	"time"
 )
 
-// type Savepointer interface {
-// 	Save() error
-// 	GetLocation() error
-// }
-
-const savepointIntervalInSeconds = 5
+const savepointIntervalInSeconds = 15
 
 type SavepointRequest struct {
 	TargetDirectory string `json:"target-directory"`
@@ -36,8 +31,8 @@ type SavepointOperation struct {
 }
 
 type SavepointInfo struct {
-	Status    SavepointStatus    `json:"status"`
-	Operation SavepointOperation `json:"operation"`
+	Status    *SavepointStatus    `json:"status"`
+	Operation *SavepointOperation `json:"operation"`
 }
 
 func (f *Flink) GetState() ([]byte, error) {
@@ -54,8 +49,6 @@ func (f *Flink) GetState() ([]byte, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	time.Sleep(savepointIntervalInSeconds * time.Second)
 
 	location, err := f.GetLocation(jobId, triggerId)
 	if err != nil {
@@ -98,21 +91,49 @@ func (f *Flink) TriggerSavepoint(jobId string) (string, error) {
 }
 
 func (f *Flink) GetLocation(jobId, triggerId string) (string, error) {
+	ticker := time.NewTicker(1 * time.Second)
+	var location string
+	status := make(chan bool)
+	go func() {
+		for range ticker.C {
+			savepoint, err := f.getSavepoint(jobId, triggerId) // TODO: find more lightweight operation
+			if err != nil {
+				continue
+			}
+
+			fmt.Println(triggerId)
+			if savepoint.Operation == nil {
+				continue
+			}
+
+			fmt.Println(savepoint.Operation)
+
+			location = savepoint.Operation.Location
+			status <- true
+		}
+	}()
+
+	<-status
+	fmt.Println(location)
+	return location, nil
+}
+
+func (f *Flink) getSavepoint(jobId, triggerId string) (*SavepointInfo, error) {
 	f.address.Path = "/jobs/" + jobId + "/savepoints/" + triggerId
 	resp, err := http.Get(f.address.String())
 	if err != nil {
-		return "", err
+		return nil, err
 	}
 
 	response := &SavepointInfo{}
 	decoder := json.NewDecoder(resp.Body)
 	err = decoder.Decode(&response)
 	if err != nil {
-		return "", fmt.Errorf("error decoding response: %w", err)
+		return nil, fmt.Errorf("error decoding response: %w", err)
 	}
 
 	defer resp.Body.Close()
-	return response.Operation.Location, nil
+	return response, nil
 }
 
 func (f *Flink) RestoreSavepoint() error {

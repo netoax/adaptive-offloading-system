@@ -122,33 +122,15 @@ func (e *Edge) handleOffloadingSignal(payload, topic string) {
 	if elapsed.Minutes() < e.timeout {
 		return
 	}
-	// fmt.Println(elapsed.Minutes())
+
 	status := e.updatePrediction(payload)
-	isOffloadable := e.isOffloadable(status)
-	e.print()
-	if e.shouldStopOffloading(isOffloadable) {
-		e.publisher.PublishOffloadingStop()
-		e.updateTimeout()
-		return
-	}
-
-	if e.state.IsInProgress() {
-		e.updateTimeout()
-		return
-	}
-
-	if e.shouldStartOffloading(isOffloadable) {
-		e.publisher.PublishOffloadingRequest()
-		e.state.To("OFF_REQ")
-		e.updateTimeout()
-	}
+	e.tryOffloading(status)
 }
 
 func (e *Edge) updatePrediction(payload string) bool {
 	context := &PredictionContext{}
 	json.Unmarshal([]byte(payload), context)
 	e.fallback = !e.isModelHealth(context) // TODO: add concept drift
-	// log.Printf("edge: fallback status is %t", e.fallback)
 	return context.Status
 }
 
@@ -192,13 +174,17 @@ func (e *Edge) handlePolicyStatusUpdate(payload, topic string) {
 	context := &PoliciesContext{}
 	json.Unmarshal([]byte(payload), context)
 
+	elapsed := time.Since(e.lastOffloadTime)
+	if elapsed.Minutes() < e.timeout {
+		return
+	}
+
 	e.violated = context.Violated
 	if !e.mlEnabled {
 		e.tryOffloading(context.Violated)
 	}
 
 	e.print()
-	// log.Printf("edge: policy violation status update to %t", e.violated)
 }
 
 func (e *Edge) tryOffloading(status bool) {
@@ -232,7 +218,7 @@ func (e *Edge) handleConceptDrift(payload, topic string) {
 
 func (e *Edge) sendBuffer(topic string) {
 	for _, payload := range e.buffer {
-		e.publisher.PublishRemoteApplicationData(topic, payload)
+		e.publisher.RemoteData <- &mqtt.Data{topic, payload}
 		_, e.buffer = e.buffer[len(e.buffer)-1], e.buffer[:len(e.buffer)-1]
 	}
 }
@@ -245,23 +231,23 @@ func (e *Edge) accBuffer(payload string) {
 
 func (e *Edge) handleApplicationData(payload, topic string) {
 	if e.state.IsInProgress() {
-		// log.Println("edge: sending application data")
-		e.publisher.PublishRemoteApplicationData(topic, payload)
+		e.publisher.RemoteData <- &mqtt.Data{topic, payload}
+		return
 	}
 
 	if e.state.IsAllowed() {
-		// log.Println("edge: adding data to buffer")
 		e.accBuffer(payload)
 		return
 	}
 
 	if e.hasBuffer() {
-		e.print()
-		// log.Printf("edge: sending %d objects from buffer", len(e.buffer))
 		e.sendBuffer(topic)
+		return
 	}
 
-	e.publisher.PublishLocalApplicationData(topic, payload)
+	if e.state.IsLocal() {
+		e.publisher.LocalData <- &mqtt.Data{topic, payload}
+	}
 }
 
 func (e *Edge) handleOffloadingAllowed(payload, topic string) {
@@ -278,12 +264,24 @@ func (e *Edge) handleOffloadingAllowed(payload, topic string) {
 		return
 	}
 
-	state, _ := e.flink.GetState()
+	state, err := e.flink.GetState()
+	if err != nil {
+		log.Printf(err.Error())
+		return
+	}
+
 	e.publisher.PublishOffloadingState(state)
 	e.print()
 }
 
 func (e *Edge) handleStateConfirmed(payload, topic string) {
+	allowed, _ := strconv.ParseBool(payload)
+	if !allowed {
+		e.state.To("LOCAL")
+		e.print()
+		return
+	}
+
 	err := e.flink.StopStandaloneJob(e.application)
 	if err != nil {
 		log.Printf("edge: failed to stop local job: ", err)

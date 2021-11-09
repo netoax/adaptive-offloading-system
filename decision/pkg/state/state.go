@@ -72,6 +72,8 @@ func (s *State) To(state string) error {
 
 func (s *State) IsAllowed() bool { return s.state == "OFF_ALLOWED" }
 
+func (s *State) IsLocal() bool { return s.state == "LOCAL" }
+
 func (s *State) IsInProgress() bool { return s.state == "OFF_IN_PROGRESS" }
 
 func (s *State) IsEmpty() bool { return s.state == "LOCAL" }

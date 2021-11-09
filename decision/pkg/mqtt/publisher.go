@@ -1,18 +1,47 @@
 package mqtt
 
-import "strconv"
+import (
+	"strconv"
+)
 
 type Publisher interface {
 	Publish(topic string, data interface{}) error
 }
 
+type Data struct {
+	Topic   string
+	Payload string
+}
+
 type MessagePublisher struct {
-	local  *Broker
-	remote *Broker
+	local      *Broker
+	remote     *Broker
+	LocalData  chan *Data
+	RemoteData chan *Data
 }
 
 func NewPublisher(local *Broker, remote *Broker) *MessagePublisher {
-	return &MessagePublisher{local, remote}
+	localData := make(chan *Data)
+	remoteData := make(chan *Data)
+	return &MessagePublisher{local, remote, localData, remoteData}
+}
+
+func (p *MessagePublisher) Start() {
+	go p.SubscribeToLocalData()
+	go p.SubscribeToRemoteData()
+
+}
+
+func (p *MessagePublisher) SubscribeToLocalData() {
+	for data := range p.LocalData {
+		p.PublishLocalApplicationData(data.Topic, data.Payload)
+	}
+}
+
+func (p *MessagePublisher) SubscribeToRemoteData() {
+	for data := range p.RemoteData {
+		p.PublishRemoteApplicationData(data.Topic, data.Payload)
+	}
 }
 
 func (p *MessagePublisher) PublishOffloadingAllowed(status bool) error {
@@ -28,8 +57,9 @@ func (p *MessagePublisher) PublishOffloadingState(state []byte) error {
 	return p.Publish(p.remote, offloadingStateSubmission, string(state))
 }
 
-func (p *MessagePublisher) PublishOffloadingStateConfirm() error {
-	return p.Publish(p.local, offloadingStateConfirmed, "")
+func (p *MessagePublisher) PublishOffloadingStateConfirm(status bool) error {
+	st := strconv.FormatBool(status)
+	return p.Publish(p.local, offloadingStateConfirmed, st)
 }
 
 func (p *MessagePublisher) PublishOffloadingStop() error {

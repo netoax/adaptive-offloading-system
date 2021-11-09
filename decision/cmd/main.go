@@ -72,6 +72,8 @@ func main() {
 	subscriber := mqtt.NewSubscriber(config.executionMode, localConnection, remoteConnection)
 	publisher := mqtt.NewPublisher(localConnection, remoteConnection)
 
+	go publisher.Start()
+
 	flink := flink.NewFlink(config.flinkAddress, config.jarId, config.standaloneJarPath, config.executionMode)
 
 	err := localConnection.Start()

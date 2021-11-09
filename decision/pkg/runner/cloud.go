@@ -79,12 +79,13 @@ func (c *Cloud) handleOffloadingRequest(payload string, topic string) {
 	// 	return
 	// }
 
-	// Context: resources usage, CEP latency?
-	c.publisher.PublishOffloadingAllowed(true)
 	err := c.state.To("OFF_ALLOWED")
 	if err != nil {
 		log.Println(err.Error())
+		return
 	}
+
+	c.publisher.PublishOffloadingAllowed(true)
 }
 
 func (c *Cloud) saveState(directory, payload string) error {
@@ -99,11 +100,12 @@ func (c *Cloud) saveState(directory, payload string) error {
 
 func (c *Cloud) handleOffloadingState(payload string, topic string) {
 	if !c.state.IsAllowed() {
-		// TODO: add response
+		c.publisher.PublishOffloadingStateConfirm(false)
 		return
 	}
 
 	start := time.Now()
+	// fmt.Println("state: ", payload)
 	err := c.saveState(stateDirectory, payload)
 	if err != nil {
 		return
@@ -112,12 +114,14 @@ func (c *Cloud) handleOffloadingState(payload string, topic string) {
 	err = c.flink.RunJob(stateDirectory, parallelism)
 	if err != nil {
 		log.Println("cloud: failed to run offloaded job:", err)
+		c.publisher.PublishOffloadingStateConfirm(false)
 		return
 	}
+
 	elapsed := time.Since(start)
 	log.Printf("cloud: saveState + RunJob took %s", elapsed)
 
-	c.publisher.PublishOffloadingStateConfirm()
+	c.publisher.PublishOffloadingStateConfirm(true)
 	c.state.To("OFF_IN_PROGRESS")
 }
 
