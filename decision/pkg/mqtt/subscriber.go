@@ -44,6 +44,10 @@ func (p *MessageSubscriber) OnOffloadingStopConfirmed(handler func(string, strin
 	return p.Subscribe(p.remote, offloadingStopConfirmed, handler)
 }
 
+func (p *MessageSubscriber) OnOffloadingEdgeRestarted(handler func(string, string)) error {
+	return p.Subscribe(p.local, offloadingEdgeRestarted, handler)
+}
+
 func (p *MessageSubscriber) OnPolicyStatusUpdate(handler func(string, string)) error {
 	return p.Subscribe(p.local, policyStatusUpdate, handler)
 }
@@ -62,6 +66,10 @@ func (p *MessageSubscriber) OnApplicationName(handler func(string, string)) erro
 
 func (p *MessageSubscriber) OnProfilingMetrics(handler func(string, string)) error {
 	return p.Subscribe(p.local, profilingMetrics, handler)
+}
+
+func (p *MessageSubscriber) OnRemoteResponse(handler func(string, string)) error {
+	return p.Subscribe(p.remote, remoteResponse, handler)
 }
 
 // Subscribe ...

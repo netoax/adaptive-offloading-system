@@ -30,7 +30,7 @@ def run_load_experiment(client, mqtt, publisher, subscriber, application, hostna
         sleep(SLEEP_INTERVAL_SECONDS)
         n1 = get_number_of_starts_cep(client)
 
-        publish_workload_data(mqtt, publisher, subscriber, [factor], hostname, EXPERIMENT_EXECUTION_TIME)
+        publish_workload_data(publisher, subscriber, [factor], hostname, EXPERIMENT_EXECUTION_TIME)
 
         sleep(10)
         get_logs(client, workdir, LOG_FILE_NAME_FORMAT, RAW_DATA_LOGS_OUTPUT_DIR)

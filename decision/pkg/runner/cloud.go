@@ -2,6 +2,7 @@ package runner
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 	"log"
 	"time"
@@ -41,12 +42,23 @@ func (c *Cloud) Start() {
 	c.subscriber.OnOffloadingRequest(c.handleOffloadingRequest)
 	c.subscriber.OnOffloadingStateSent(c.handleOffloadingState)
 	c.subscriber.OnOffloadingStopReq(c.handleOffloadingStopReq)
-
+	c.subscriber.OnOffloadingEdgeRestarted(c.handleEdgeRestarted)
 	// contextual data
 	c.subscriber.OnProfilingMetrics(c.handleProflingMetrics)
 
 	// incoming workload data
 	c.subscriber.OnApplicationData(c.handleApplicationData)
+}
+
+func (c *Cloud) print() {
+	currentTime := time.Now()
+	oc := &OverallContext{
+		State:     c.state.GetState(),
+		Timestamp: currentTime.Format("2006-01-02T15:04:05-0700"),
+	}
+
+	encodedResponse, _ := json.Marshal(oc)
+	fmt.Println(string(encodedResponse))
 }
 
 func (c *Cloud) handleProflingMetrics(payload, topic string) {
@@ -86,6 +98,7 @@ func (c *Cloud) handleOffloadingRequest(payload string, topic string) {
 	}
 
 	c.publisher.PublishOffloadingAllowed(true)
+	c.print()
 }
 
 func (c *Cloud) saveState(directory, payload string) error {
@@ -104,8 +117,7 @@ func (c *Cloud) handleOffloadingState(payload string, topic string) {
 		return
 	}
 
-	start := time.Now()
-	// fmt.Println("state: ", payload)
+	// start := time.Now()
 	err := c.saveState(stateDirectory, payload)
 	if err != nil {
 		return
@@ -118,11 +130,12 @@ func (c *Cloud) handleOffloadingState(payload string, topic string) {
 		return
 	}
 
-	elapsed := time.Since(start)
-	log.Printf("cloud: saveState + RunJob took %s", elapsed)
+	// elapsed := time.Since(start)
+	// log.Printf("cloud: saveState + RunJob took %s", elapsed)
 
 	c.publisher.PublishOffloadingStateConfirm(true)
 	c.state.To("OFF_IN_PROGRESS")
+	c.print()
 }
 
 func (c *Cloud) handleOffloadingStopReq(payload string, topic string) {
@@ -136,10 +149,19 @@ func (c *Cloud) handleOffloadingStopReq(payload string, topic string) {
 		log.Println("cloud: cannot get state")
 	}
 
-	c.flink.StopJob() // TODO: check potential for inconsistency
 	c.publisher.PublishOffloadingStopConfirm(state)
-	log.Println("cloud: offloading stop confirmed: sending state")
+	c.print()
+}
+
+func (c *Cloud) handleEdgeRestarted(payload string, topic string) {
+	if !c.state.IsInProgress() {
+		log.Println("unabled to stop because there's no offload in progress")
+		return
+	}
+
+	c.flink.StopJob()
 	c.state.To("LOCAL")
+	c.print()
 }
 
 func (c *Cloud) SetApplication(topic, application string) {
@@ -147,6 +169,7 @@ func (c *Cloud) SetApplication(topic, application string) {
 }
 
 func (c *Cloud) handleApplicationData(payload, topic string) {
+	fmt.Println(payload, topic)
 	if !c.state.IsInProgress() {
 		log.Println("cloud: unabled to process data because there's no offload in progress")
 		return

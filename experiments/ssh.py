@@ -38,6 +38,10 @@ def get_logs(client, dir, pattern, output):
     client.exec_command('cd {} && rm {}'.format(dir, pattern))
     scp.close()
 
+def clear_logs(client, dir):
+    cmd = f"cd {dir} && rm *.txt"
+    client.exec_command(cmd)
+
 def get_number_of_starts_cep(client):
     cmd = 'journalctl -u ddos-10s.service | grep Running | wc -l'
     stdin, stdout, stderr = client.exec_command(cmd)

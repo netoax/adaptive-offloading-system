@@ -101,12 +101,12 @@ func (f *Flink) GetLocation(jobId, triggerId string) (string, error) {
 				continue
 			}
 
-			fmt.Println(triggerId)
+			// fmt.Println(triggerId)
 			if savepoint.Operation == nil {
 				continue
 			}
 
-			fmt.Println(savepoint.Operation)
+			// fmt.Println(savepoint.Operation)
 
 			location = savepoint.Operation.Location
 			status <- true
@@ -114,7 +114,7 @@ func (f *Flink) GetLocation(jobId, triggerId string) (string, error) {
 	}()
 
 	<-status
-	fmt.Println(location)
+	// fmt.Println(location)
 	return location, nil
 }
 

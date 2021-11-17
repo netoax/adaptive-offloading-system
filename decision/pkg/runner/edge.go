@@ -97,6 +97,8 @@ func (e *Edge) SetupSubscriptions() {
 
 	// incoming workload data
 	e.subscriber.OnApplicationData(e.handleApplicationData)
+
+	e.subscriber.OnRemoteResponse(e.handleRemoteResponse)
 }
 
 func (e *Edge) isModelHealth(context *PredictionContext) bool {
@@ -202,8 +204,8 @@ func (e *Edge) tryOffloading(status bool) {
 	}
 
 	if e.shouldStartOffloading(isOffloadable) {
-		e.publisher.PublishOffloadingRequest()
 		e.state.To("OFF_REQ")
+		e.publisher.PublishOffloadingRequest()
 		e.updateTimeout()
 	}
 }
@@ -219,8 +221,11 @@ func (e *Edge) handleConceptDrift(payload, topic string) {
 func (e *Edge) sendBuffer(topic string) {
 	for _, payload := range e.buffer {
 		e.publisher.RemoteData <- &mqtt.Data{topic, payload}
-		_, e.buffer = e.buffer[len(e.buffer)-1], e.buffer[:len(e.buffer)-1]
+		// _, e.buffer = e.buffer[len(e.buffer)-1], e.buffer[:len(e.buffer)]
 	}
+
+	e.buffer = []string{}
+	e.print()
 }
 
 func (e *Edge) accBuffer(payload string) {
@@ -230,18 +235,15 @@ func (e *Edge) accBuffer(payload string) {
 }
 
 func (e *Edge) handleApplicationData(payload, topic string) {
+	// e.print()
 	if e.state.IsInProgress() {
+		// e.sendBuffer(topic)
 		e.publisher.RemoteData <- &mqtt.Data{topic, payload}
 		return
 	}
 
 	if e.state.IsAllowed() {
 		e.accBuffer(payload)
-		return
-	}
-
-	if e.hasBuffer() {
-		e.sendBuffer(topic)
 		return
 	}
 
@@ -289,6 +291,7 @@ func (e *Edge) handleStateConfirmed(payload, topic string) {
 	}
 
 	e.state.To("OFF_IN_PROGRESS")
+	e.print()
 }
 
 func (e *Edge) handleStopConfirmed(payload, topic string) {
@@ -302,6 +305,13 @@ func (e *Edge) handleStopConfirmed(payload, topic string) {
 	jobId, _ := e.flink.StartStandaloneJob(e.application) // TODO: move this to before confirmation?
 	e.publisher.PublishJobID(jobId)
 	e.state.To("LOCAL")
+
+	e.publisher.PublishEdgeRestarted()
+	e.print()
+}
+
+func (e *Edge) handleRemoteResponse(payload, topic string) {
+	e.publisher.PublishRemoteResponse(topic, payload)
 }
 
 func (e *Edge) SetApplication(application, topic string) {
