@@ -63,7 +63,7 @@ func (f *Flink) RunJob(savepointPath, parallelism string) error {
 		return err
 	}
 
-	fmt.Println(resp)
+	// fmt.Println(resp)
 	if resp.StatusCode != 200 {
 		return errors.New("fail to make http request")
 	}

@@ -67,9 +67,9 @@ def publish_botnet_data(publisher, throughput=500, number='1000000', chunk='1000
     print('\ttime spent: ', elapsed)
     print('\tthroughput: ', (count / elapsed))
 
-def publish_workload_data(mqtt, publisher, subscriber, throughputs, hostname, time=30):
+def publish_workload_data(publisher, subscriber, throughputs, address, time=30):
     last_increment_factor = 0
-    start_response_count(mqtt, subscriber, received_response_events)
+    start_response_count(subscriber, received_response_events)
 
     for f in throughputs:
         number_of_events = time * 60 * f # time in minutes x 60 seconds * throughput
@@ -82,12 +82,11 @@ def publish_workload_data(mqtt, publisher, subscriber, throughputs, hostname, ti
         sleep(120)
         print('\tresponses: ', received_response_events[0])
         received_response_events[0]=0
-        latency = get_mean_latency_from_job(f'http://{hostname}:8282')
-        print('\tmean latency: ', latency)
+        # latency = get_mean_latency_from_job(address)
+        # print('\tmean latency: ', latency)
 
-def start_response_count(mqtt, subscriber, counter=[0]):
+def start_response_count(subscriber, counter=[0]):
     def count_received_response_data(mosq, obj, msg):
         counter[0] += 1
 
     subscriber.on_cep_response(count_received_response_data)
-    # mqtt.loop_start()

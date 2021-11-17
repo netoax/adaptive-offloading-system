@@ -9,6 +9,7 @@ var (
 	offloadingStateConfirmed  = "/offloading/state/confirmed"
 	offloadingStopRequest     = "/offloading/stop/request"
 	offloadingStopConfirmed   = "/offloading/stop/confirmed"
+	offloadingEdgeRestarted   = "/offloading/edge/restarted"
 
 	// contextual data
 	policyStatusUpdate     = "/policies/status"
@@ -16,7 +17,8 @@ var (
 	profilingMetrics       = "/profiling/metrics"
 
 	// application
-	dataSent        = "/cep/application/+/data"
+	dataSent        = "/application/+/data"
 	applicationName = "/application/name"
+	remoteResponse  = "/cep/application/response"
 	// dataToCep = "/cep/application/+/data"
 )

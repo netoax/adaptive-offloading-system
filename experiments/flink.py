@@ -35,3 +35,13 @@ def get_mean_latency_from_job(address):
         return values[0]['value']
 
     return 0.0
+
+def cancel_job_by_id(address, id):
+    r = requests.patch(f'{address}/jobs/{id}')
+
+def stop_existing_jobs(address):
+    r = requests.get(f'{address}/jobs')
+    jobs = r.json()['jobs']
+    for job in jobs:
+        if job['status'] == 'RUNNING':
+            cancel_job_by_id(address, job['id'])

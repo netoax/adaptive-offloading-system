@@ -29,7 +29,6 @@ func NewPublisher(local *Broker, remote *Broker) *MessagePublisher {
 func (p *MessagePublisher) Start() {
 	go p.SubscribeToLocalData()
 	go p.SubscribeToRemoteData()
-
 }
 
 func (p *MessagePublisher) SubscribeToLocalData() {
@@ -70,12 +69,20 @@ func (p *MessagePublisher) PublishOffloadingStopConfirm(state []byte) error {
 	return p.Publish(p.local, offloadingStopConfirmed, string(state))
 }
 
+func (p *MessagePublisher) PublishEdgeRestarted() error {
+	return p.Publish(p.remote, offloadingEdgeRestarted, "")
+}
+
 func (p *MessagePublisher) PublishRemoteApplicationData(topic, payload string) error {
 	return p.Publish(p.remote, topic, payload)
 }
 
 func (p *MessagePublisher) PublishLocalApplicationData(topic, payload string) error {
 	return p.Publish(p.local, "/cep"+topic, payload)
+}
+
+func (p *MessagePublisher) PublishRemoteResponse(topic, payload string) error {
+	return p.Publish(p.local, topic, payload)
 }
 
 func (p *MessagePublisher) PublishJobID(payload string) error {

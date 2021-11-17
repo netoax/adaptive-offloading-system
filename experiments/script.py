@@ -21,12 +21,14 @@ import numpy as np
 from analytics.init_logger import init_logger
 from scp import SCPClient, SCPException
 from analytics.network.publisher import MessagePublisher
+from analytics.network.subscriber import MessageSubscriber
 from analytics.network.mqtt import MQTT
 from analytics.policy_manager import PolicyManager
 from analytics.models.metric import Measurement
 
 from experiments.ssh import *
 from experiments.data import *
+from experiments.constants import *
 
 
 '''
@@ -50,35 +52,26 @@ _
 Name suggestion: `profiler-<timestamp->-<execution-number>`.{txt, csv}
 '''
 
-EDGE_NODE_HOSTNAME = '192.168.3.11'
-EDGE_NODE_SSH_USERNAME = 'pi'
-EDGE_WORKDIR = '/home/pi/'
-
-CLOUD_NODE_HOSTNAME = '192.168.3.7'
-CLOUD_NODE_SSH_USERNAME = 'netoax'
-CLOUD_WORKDIR = '/home/netoax/experiment'
-
 RAW_DATA_LOGS_OUTPUT_DIR = '/Users/jneto/msc/workspace/results/staging'
 LOG_FILE_NAME_FORMAT = '*.txt'
 
-BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
-BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str}
-
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']
-APPLICATIONS = ['ddos-10s', 'ddos-128s']
-DATA_THROUGHPUT_FACTORS = [500]
+APPLICATIONS = ['ddos-128s']
 STRATEGIES = ['policy']
-NUMBER_OF_EVENTS_TO_PUBLISH = '100000'
+
+application_in_use = 'ddos-128s'
 
 # EXECUTION_MODE = os.environ.get('EXECUTION_MODE') || 'test'
 
-mqtt_local_hostname = '192.168.3.11'
-mqtt = MQTT(hostname=mqtt_local_hostname, port=1883)
+mqtt = MQTT(hostname=EDGE_NODE_HOSTNAME, port=1883)
+mqtt.start()
 publisher = MessagePublisher(mqtt)
+subscriber = MessageSubscriber(mqtt)
+
 # mqtt.start()
 
-logger = init_logger(__name__, testing_mode=False)
-policy_manager = PolicyManager('./analytics/policies.xml', logger, publisher)
+# logger = init_logger(__name__, testing_mode=False)
+# policy_manager = PolicyManager('./analytics/policies.xml', logger, publisher)
 
 
 '''
@@ -98,7 +91,7 @@ def _start_edge_profiler(client, execution_number):
 
 def _start_cloud_profiler(client, execution_number):
     filename = 'cloud:profiler:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
-    cmd = 'cd experiment && export $(cat ./profiler.env) && ./profiler > {} 2>&1 &'.format(filename)
+    cmd = 'cd {} && export $(cat ./profiler.env) && ./profiler > {} 2>&1 &'.format(CLOUD_WORKDIR, filename)
     stdin, stdout, stderr = client.exec_command(cmd)
     return filename
 
@@ -126,7 +119,7 @@ def _stop_analytics(client):
     kill_application(client, 'python')
 
 def _start_iperf(client):
-    cmd = 'iperf3 -s'
+    cmd = 'iperf3 -s -D'
     stdin, stdout, stderr = client.exec_command(cmd)
 
 def _stop_iperf(client):
@@ -162,20 +155,23 @@ def _save_flink_overall_metrics(job_id, execution_number, application):
     file.close()
 
 def _publish_application_name(name):
-    mqtt.start()
     publisher.publish_application_name(name)
-    mqtt.stop()
     sleep(2 * 60)
+
+def _restart_flink_cluster(client):
+    stop = f'{FLINK_CLUSTER_DIR}/deps/bin/stop-cluster.sh'
+    start = f'{FLINK_CLUSTER_DIR}/deps/bin/start-cluster.sh'
+    stdin, stdout, stderr = client.exec_command(f'{start} && {stop}')
 
 '''
     Experiment Orchestration
 '''
 
 def start_dependencies(edgeClient, cloudClient, application, execution):
+    _start_iperf(cloudClient)
     _start_analytics(edgeClient)
     _start_edge_profiler(edgeClient, execution)
     _start_cloud_profiler(cloudClient, execution)
-    _start_iperf(cloudClient)
 
     start_cep_application(edgeClient, application)
     _start_edge_decision_engine(edgeClient, execution)
@@ -184,7 +180,10 @@ def start_dependencies(edgeClient, cloudClient, application, execution):
     sleep(5)
 
 def stop_and_get_logs(edgeClient, cloudClient, application, throughput, execution):
+    print('getting logs')
     stop_cep_application(edgeClient, application)
+    stop_existing_jobs(f'http://{CLOUD_NODE_HOSTNAME}:{CLOUD_CEP_PORT}')
+
     _stop_decision_engine(edgeClient)
     _stop_decision_engine(cloudClient)
 
@@ -199,12 +198,11 @@ def stop_and_get_logs(edgeClient, cloudClient, application, throughput, executio
 
 # save to -> ../results/staging/:execution/:application/:throughput/file.txt
 def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
+    application_in_use = application
     start_dependencies(edgeClient, cloudClient, application, execution)
     _publish_application_name(application)
 
-    mqtt.start()
-    publish_workload_data(publisher, [throughput], NUMBER_OF_EVENTS_TO_PUBLISH)
-    mqtt.stop()
+    publish_workload_data(publisher, subscriber, [throughput], EDGE_NODE_HOSTNAME, EXPERIMENT_EXECUTION_TIME)
 
     print('\tExtracting logs from nodes')
     stop_and_get_logs(edgeClient, cloudClient, application, throughput, execution)
@@ -212,16 +210,14 @@ def run_unit_execution(edgeClient, cloudClient, application, throughput, executi
 
 
 def start_experiment(edgeClient, cloudClient):
-    number_of_executions = 1
-    print('Running experiment: strategies x throughputs (30x)')
+    print('Running experiment: strategies x throughputs')
 
     for s in STRATEGIES:
         for f in DATA_THROUGHPUT_FACTORS:
-            for i in range(number_of_executions):
+            for i in range(NUMBER_OF_EXECUTIONS):
                 print('strategy: {}, throughput: {}, execution: {}'.format(s, f, i+1))
-                run_unit_execution(edgeClient, cloudClient, 'ddos-10s', f, i+1)
-
-# --------------- graphs
+                run_unit_execution(edgeClient, cloudClient, CEP_APPLICATION_COMPLEX, f, i+1)
+                # run_unit_execution(edgeClient, cloudClient, CEP_APPLICATION_SIMPLE, f, i+1)
 
 edgeClient = start_ssh_connection(EDGE_NODE_HOSTNAME, EDGE_NODE_SSH_USERNAME)
 cloudClient = start_ssh_connection(CLOUD_NODE_HOSTNAME, CLOUD_NODE_SSH_USERNAME)
@@ -231,7 +227,13 @@ def signal_handler(sig, frame):
     mqtt.stop()
     _stop_profiler(edgeClient)
     _stop_profiler(cloudClient)
-    kill_application(edgeClient, 'java')
+
+    stop_cep_application(edgeClient, application_in_use)
+    stop_existing_jobs(f'http://{CLOUD_NODE_HOSTNAME}:{CLOUD_CEP_PORT}')
+
+    clear_logs(edgeClient, EDGE_WORKDIR)
+    clear_logs(cloudClient, CLOUD_WORKDIR)
+
     _stop_iperf(cloudClient)
     _stop_decision_engine(edgeClient)
     _stop_decision_engine(cloudClient)
@@ -240,6 +242,7 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 start_experiment(edgeClient, cloudClient)
+# _stop_iperf(cloudClient)
 cloudClient.close()
 
 # TODO: 1. adicionar categorizacaoo das colunas e gerar CSV consolidado dos dados.

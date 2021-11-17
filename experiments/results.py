@@ -19,6 +19,8 @@ from skmultiflow.bayes import NaiveBayes
 from skmultiflow.evaluation import EvaluatePrequential
 from skmultiflow.data import DataStream
 
+from experiments.constants import *
+
 ht = HoeffdingTreeClassifier()
 efdt = ExtremelyFastDecisionTreeClassifier()
 nb = NaiveBayes()
@@ -26,8 +28,8 @@ knn = KNNClassifier()
 
 RESULTS_PATH = '../../results/staging/ddos-10s'
 
-def _get_profiler_logs(type, filename, data):
-    file = open('{}/{}.txt'.format(RESULTS_PATH, filename))
+def _get_profiler_logs(filename, data):
+    file = open(filename)
     next(file)
     for line in file:
         instance = json.loads(line)
@@ -35,14 +37,14 @@ def _get_profiler_logs(type, filename, data):
 
     return data
 
-def _create_profiler_logs_file(type, data):
+def _create_profiler_logs_file(type, app, throughput, data):
     header = []
     if type == 'edge':
         header = ['bandwidth', 'cepLatency', 'cpu', 'memory', 'rtt', 'timestamp']
     else:
         header = ['cpu', 'memory', 'timestamp']
 
-    with open('./results/formatted/{}/grouped_profiler_data.csv'.format(type), 'w') as f:
+    with open(f'../results/formatted/profiler-{type}-{app}-{throughput}.csv', 'w') as f:
         writer = csv.writer(f)
         writer.writerow(header)
         for d in data:
@@ -57,16 +59,6 @@ def _prepare_profiler_logs(type):
 
     _create_profiler_logs_file(type, data)
     # return data
-
-def _create_boxplot_charts():
-    df = pd.read_csv('../../results/formatted/edge/grouped_profiler_data.csv')
-    data = df['cpu'].to_list()
-
-    fig = plt.figure(figsize=(10, 7))
-    plt.boxplot([data, data], labels=['3000', '5000'])
-    plt.ylabel('CPU (%)')
-    plt.xlabel('Throughput')
-    plt.show()
 
 # type = p.stem[:p.stem.index(":")]
 # _process_profiler_logs(type, p.stem)
@@ -149,6 +141,66 @@ def process_staging_files():
         _process_profiler_logs(type, p.stem)
         _generate_line_chart_timestamp(p.stem, 'cpu', './results/images/{}'.format(type), type)
         _generate_line_chart_timestamp(p.stem, 'memory', './results/images/{}'.format(type), type)
+
+def group_staging_files_together(type="edge"):
+    data = []
+
+    for app in APPLICATIONS:
+        for t in [250, 500]:
+            for i in range(1, 11):
+                        # print(f'./results/staging/{i}/{app}/{t}/{type}:profiler*')
+                files = glob.glob(f'../preview-results/{i}/{app}/{t}/edge:profiler:*.txt')
+                for file in files:
+                    p = Path(file)
+                    _get_profiler_logs(p, data)
+            _create_profiler_logs_file(type, app, t, data)
+
+def set_box_color(bp, color):
+    plt.setp(bp['boxes'], color=color)
+    plt.setp(bp['whiskers'], color=color)
+    plt.setp(bp['caps'], color=color)
+    plt.setp(bp['medians'], color=color)
+
+def get_application_data(app, metric, type="edge"):
+    grouped_data = []
+    files = glob.glob(f'../results/formatted/profiler-{type}-*.csv')
+    for file in files:
+        p = Path(file)
+        df = pd.read_csv(p)
+        data = df[metric].to_list()
+        grouped_data.append(data)
+    return grouped_data
+
+def _create_boxplot_charts(metric, type="edge"):
+    ddos_128s_data = get_application_data("ddos-128s", metric)
+
+    ticks = ['250', '500', '750']
+
+    # app1 = [[1,2,3,4,5], [1,2,3,4,5], [1,2,3,4,5]]
+    app2 = [[1,2,3,4,5], [1,2,3,4,5], [1,2,3,4,5]]
+
+    boxplot_1 = plt.boxplot(ddos_128s_data, positions=np.array(range(len(ddos_128s_data)))*2.0-0.4, sym='', widths=0.6)
+    boxplot_2 = plt.boxplot(app2, positions=np.array(range(len(app2)))*2.0+0.4, sym='', widths=0.6)
+
+    set_box_color(boxplot_1, '#D7191C') # colors are from http://colorbrewer2.org/
+    set_box_color(boxplot_2, '#2C7BB6')
+
+    plt.plot([], c='#D7191C', label='ddos-10s')
+    plt.plot([], c='#2C7BB6', label='ddos-128s')
+    # plt.plot([], c='#2C7BB6', label='750')
+    plt.legend()
+
+    plt.xticks(range(0, len(ticks) * 2, 2), ticks)
+    plt.xlim(-2, len(ticks)*2)
+    # plt.ylim(0, 8)
+    plt.tight_layout()
+    plt.savefig(f'{type}-{metric}.eps', format='eps')
+    plt.clf()
+
+# group_staging_files_together()
+_create_boxplot_charts("cpu")
+_create_boxplot_charts("memory")
+_create_boxplot_charts("bandwidth")
 
 # _process_profiler_logs("profiling_logs")
 # file = './nmon.csv'

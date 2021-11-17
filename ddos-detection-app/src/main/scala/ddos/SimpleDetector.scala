@@ -33,11 +33,10 @@ class SimpleDetector {
     if (mode == "edge") {
       val conf = new Configuration()
       conf.setString("rest.port", "8282")
-        env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
+      env = StreamExecutionEnvironment.createLocalEnvironmentWithWebUI(conf)
     }
 
     env.getConfig.setLatencyTrackingInterval(LATENCY_INTERVAL_MS)
-//    env.setStreamTimeCharacteristic(TimeCharacteristic.EventTime)
 
     var windowSeconds = 1
     var matchTimes = 128
@@ -53,7 +52,6 @@ class SimpleDetector {
         case s => s.toInt
       }
     }
-
 
     val networkSource: DataStream[MqttMessage] = env
       .addSource(new MqttSource(MQTT_BROKER_HOSTNAME, APPLICATION_DATA_NETWORK_TOPIC))
@@ -95,7 +93,6 @@ class SimpleDetector {
       .uid("map-network-event")
       .name("map-network-event")
 
-
     val edgePattern = Pattern.begin[NetworkEvent]("start", AfterMatchSkipStrategy.skipToNext())
       .where(_.protocol == "tcp")
       .within(Time.seconds(windowSeconds))
@@ -106,13 +103,17 @@ class SimpleDetector {
       .within(Time.seconds(DEFAULT_WINDOW_TIME_S))
       .times(DEFAULT_MATCH_TIMES)
 
+    val filterPattern = Pattern.begin[NetworkEvent]("start")
+      .where(_.protocol == "tcp")
+
     val startPattern = mode match {
       case "edge" => edgePattern
       case "cloud" => cloudPattern
+      case "filter" => filterPattern
     }
 
     val partitionedInput = networkStream.keyBy(event => event.sourceAddr)
-    val patternStream = CEP.pattern(partitionedInput, startPattern)
+    val patternStream = CEP.pattern(partitionedInput, filterPattern)
 
     val patternTestFn = new PatternProcessFunction[NetworkEvent, ResultEvent]() {
       override def processMatch(
