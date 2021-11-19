@@ -44,7 +44,7 @@ func (f *Flink) GetJobs() ([]*Job, error) {
 	return response["jobs"], nil
 }
 
-func (f *Flink) RunJob(savepointPath, parallelism string) error {
+func (f *Flink) RunJob(savepointPath, parallelism string) (string, error) {
 	info := &RunJobInformation{
 		EntryClass:    "main",
 		Parallelism:   parallelism,
@@ -54,33 +54,33 @@ func (f *Flink) RunJob(savepointPath, parallelism string) error {
 
 	body, err := json.Marshal(info)
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	f.address.Path = "/jars/" + f.jarId + "/run"
 	resp, err := http.Post(f.address.String(), "application/json", bytes.NewBuffer(body))
 	if err != nil {
-		return err
+		return "", err
 	}
 
 	// fmt.Println(resp)
 	if resp.StatusCode != 200 {
-		return errors.New("fail to make http request")
+		return "", errors.New("fail to make http request")
 	}
 
 	return f.updateJobID(resp)
 }
 
-func (f *Flink) updateJobID(resp *http.Response) error {
+func (f *Flink) updateJobID(resp *http.Response) (string, error) {
 	response := &RunJobResponse{}
 	decoder := json.NewDecoder(resp.Body)
 	err := decoder.Decode(&response)
 	if err != nil {
-		return fmt.Errorf("error decoding response: %w", err)
+		return "", fmt.Errorf("error decoding response: %w", err)
 	}
 
 	f.jobId = response.JobId
-	return nil
+	return response.JobId, nil
 }
 
 func (f *Flink) StopJob() error {

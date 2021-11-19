@@ -1,21 +1,23 @@
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
 BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str}
 
-DATA_THROUGHPUT_FACTORS = [250, 500, 750]
+DATA_THROUGHPUT_FACTORS = [250]
 NUMBER_OF_EVENTS_TO_PUBLISH = '100000'
 CHUNK_SIZE = 100000
+
+RAW_DATA_LOGS_OUTPUT_DIR = '/Users/jneto/msc/workspace/results/staging'
 
 CEP_APPLICATION_SIMPLE = 'ddos-10s'
 CEP_APPLICATION_COMPLEX = 'ddos-128s'
 
 APPLICATIONS = ['ddos-128s']
 
-EXPERIMENT_EXECUTION_TIME = 30 # 30 minutes
+EXPERIMENT_EXECUTION_TIME = 10 # 30 minutes
 
-NUMBER_OF_EXECUTIONS = 10
+NUMBER_OF_EXECUTIONS = 1
 
 LOG_FILE_NAME_FORMAT = '*.nmon'
-RAW_DATA_LOGS_OUTPUT_DIR = './results/nmon/'
+# RAW_DATA_LOGS_OUTPUT_DIR = './results/nmon/'
 
 FLINK_CLUSTER_DIR = './apache-flink/apache-flink-1.10.0'
 

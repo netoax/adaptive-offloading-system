@@ -123,12 +123,14 @@ func (c *Cloud) handleOffloadingState(payload string, topic string) {
 		return
 	}
 
-	err = c.flink.RunJob(stateDirectory, parallelism)
+	jobId, err := c.flink.RunJob(stateDirectory, parallelism)
 	if err != nil {
 		log.Println("cloud: failed to run offloaded job:", err)
 		c.publisher.PublishOffloadingStateConfirm(false)
 		return
 	}
+
+	c.publisher.PublishJobID(jobId)
 
 	// elapsed := time.Since(start)
 	// log.Printf("cloud: saveState + RunJob took %s", elapsed)

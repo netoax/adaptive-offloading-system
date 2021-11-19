@@ -52,7 +52,6 @@ _
 Name suggestion: `profiler-<timestamp->-<execution-number>`.{txt, csv}
 '''
 
-RAW_DATA_LOGS_OUTPUT_DIR = '/Users/jneto/msc/workspace/results/staging'
 LOG_FILE_NAME_FORMAT = '*.txt'
 
 # DATA_THROUGHPUT_FACTORS = ['0.001', '0.001', '0.0001', '0.00001', '0.0']

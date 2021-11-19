@@ -2,6 +2,7 @@ package ddos
 
 import java.util
 
+import com.google.gson.Gson
 import ddos.Events.NetworkEvent
 import io.circe.{Decoder, parser}
 import mqtt.{MqttMessage, MqttSink, MqttSource}
@@ -17,7 +18,7 @@ import org.apache.flink.streaming.api.scala.{DataStream, StreamExecutionEnvironm
 import org.apache.flink.streaming.api.windowing.time.Time
 import org.apache.flink.util.Collector
 
-case class ResultEvent(detected: Boolean, address: String)
+case class ResultEvent(detected: Boolean, address: String, pkSeqID: Int)
 
 class SimpleDetector {
   val APPLICATION_DATA_NETWORK_TOPIC = "/cep/application/network/data"
@@ -115,22 +116,24 @@ class SimpleDetector {
     val partitionedInput = networkStream.keyBy(event => event.sourceAddr)
     val patternStream = CEP.pattern(partitionedInput, filterPattern)
 
-    val patternTestFn = new PatternProcessFunction[NetworkEvent, ResultEvent]() {
+    val patternTestFn = new PatternProcessFunction[NetworkEvent, String]() {
       override def processMatch(
                                  map: util.Map[String, util.List[NetworkEvent]],
                                  ctx: PatternProcessFunction.Context,
-                                 out: Collector[ResultEvent]): Unit = {
+                                 out: Collector[String]): Unit = {
         val event = map.get("start").get(0)
-        out.collect(ResultEvent(true, event.sourceAddr))
+        val gson = new Gson
+        val jsonString = gson.toJson(ResultEvent(true, event.sourceAddr, event.pkSeqID))
+        out.collect(jsonString)
       }
     }
 
-    val mainResults: DataStream[ResultEvent] = patternStream.process(patternTestFn)
+    val mainResults: DataStream[String] = patternStream.process(patternTestFn)
       .name("main-results-collecting")
       .uid("main-results-collecting")
 
     mainResults
-      .addSink(new MqttSink[ResultEvent](MQTT_BROKER_HOSTNAME, APPLICATION_RESPONSE_TOPIC))
+      .addSink(new MqttSink[String](MQTT_BROKER_HOSTNAME, APPLICATION_RESPONSE_TOPIC))
       .name("mqtt: network-event-response-sink")
       .uid("network-event-response-sink")
 
