@@ -28,6 +28,9 @@ libraryDependencies += "org.apache.flink" %% "flink-runtime-web" % "1.10.0"
 
 libraryDependencies += "org.fusesource.mqtt-client" % "mqtt-client" % "1.16"
 
+libraryDependencies += "com.google.code.gson" % "gson" % "2.8.9"
+
+
 val circeVersion = "0.7.0"
 libraryDependencies ++= Seq(
   "io.circe"  %% "circe-core"     % circeVersion,

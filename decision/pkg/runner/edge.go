@@ -46,6 +46,8 @@ type Edge struct {
 	fallback        bool
 	violated        bool
 
+	violationCount int
+
 	// content buffer
 	buffer  []string
 	timeout float64
@@ -57,7 +59,7 @@ type OffloadingSignal struct {
 
 func NewEdge(subscriber *mqtt.MessageSubscriber, publisher *mqtt.MessagePublisher, flink *flink.Flink, timeout float64, mlEnabled bool) *Edge {
 	state := state.NewState("edge")
-	return &Edge{subscriber, publisher, flink, mlEnabled, time.Time{}, state, "", make(chan bool), !mlEnabled, false, []string{}, timeout}
+	return &Edge{subscriber, publisher, flink, mlEnabled, time.Time{}, state, "", make(chan bool), !mlEnabled, false, 0, []string{}, timeout}
 }
 
 func (e *Edge) hasBuffer() bool { return len(e.buffer) != 0 }
@@ -120,6 +122,10 @@ func (e *Edge) isOffloadable(status bool) bool {
  */
 
 func (e *Edge) handleOffloadingSignal(payload, topic string) {
+	if !e.mlEnabled {
+		return
+	}
+
 	elapsed := time.Since(e.lastOffloadTime)
 	if elapsed.Minutes() < e.timeout {
 		return
@@ -178,6 +184,15 @@ func (e *Edge) handlePolicyStatusUpdate(payload, topic string) {
 
 	elapsed := time.Since(e.lastOffloadTime)
 	if elapsed.Minutes() < e.timeout {
+		return
+	}
+
+	if context.Violated {
+		e.violationCount += 1
+	}
+
+	if e.violationCount < 10 {
+		e.print()
 		return
 	}
 
@@ -254,6 +269,7 @@ func (e *Edge) handleApplicationData(payload, topic string) {
 
 func (e *Edge) handleOffloadingAllowed(payload, topic string) {
 	allowed, _ := strconv.ParseBool(payload)
+	fmt.Println("offloaing allowed: ", allowed)
 	if !allowed {
 		e.state.To("LOCAL")
 		e.print()
@@ -278,6 +294,7 @@ func (e *Edge) handleOffloadingAllowed(payload, topic string) {
 
 func (e *Edge) handleStateConfirmed(payload, topic string) {
 	allowed, _ := strconv.ParseBool(payload)
+	fmt.Println("state allowed: ", allowed)
 	if !allowed {
 		e.state.To("LOCAL")
 		e.print()
