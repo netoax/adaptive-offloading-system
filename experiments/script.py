@@ -30,6 +30,8 @@ from experiments.ssh import *
 from experiments.data import *
 from experiments.constants import *
 
+import sys
+sys.stdout = open('output_last', 'w')
 
 '''
 Requirements
@@ -242,6 +244,7 @@ def signal_handler(sig, frame):
 signal.signal(signal.SIGINT, signal_handler)
 start_experiment(edgeClient, cloudClient)
 # _stop_iperf(cloudClient)
+sys.stdout.close()
 cloudClient.close()
 
 # TODO: 1. adicionar categorizacaoo das colunas e gerar CSV consolidado dos dados.

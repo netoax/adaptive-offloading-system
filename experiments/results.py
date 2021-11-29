@@ -28,28 +28,6 @@ knn = KNNClassifier()
 
 RESULTS_PATH = '../../results/staging/ddos-10s'
 
-def _get_profiler_logs(filename, data):
-    file = open(filename)
-    next(file)
-    for line in file:
-        instance = json.loads(line)
-        data.append(instance.values())
-
-    return data
-
-def _create_profiler_logs_file(type, app, throughput, data):
-    header = []
-    if type == 'edge':
-        header = ['bandwidth', 'cepLatency', 'cpu', 'memory', 'rtt', 'timestamp']
-    else:
-        header = ['cpu', 'memory', 'timestamp']
-
-    with open(f'../results/formatted/profiler-{type}-{app}-{throughput}.csv', 'w') as f:
-        writer = csv.writer(f)
-        writer.writerow(header)
-        for d in data:
-            writer.writerow(d)
-
 def _prepare_profiler_logs(type):
     files = glob.glob("{}/{}:profiler*.txt".format(RESULTS_PATH, type))
     data = []
@@ -144,16 +122,38 @@ def process_staging_files():
 
 def group_staging_files_together(type="edge"):
     data = []
-
     for app in APPLICATIONS:
-        for t in [250, 500]:
-            for i in range(1, 11):
+        for t in [250, 500, 750]:
+            for i in range(1, 31):
                         # print(f'./results/staging/{i}/{app}/{t}/{type}:profiler*')
-                files = glob.glob(f'../preview-results/{i}/{app}/{t}/edge:profiler:*.txt')
+                files = glob.glob(f'/Users/jneto/drive/experiment-phase-1/{i}/{app}/{t}/{type}:profiler:*.txt')
+                print(files)
                 for file in files:
                     p = Path(file)
                     _get_profiler_logs(p, data)
             _create_profiler_logs_file(type, app, t, data)
+            data = []
+
+def _get_profiler_logs(filename, data):
+    file = open(filename)
+    next(file)
+    for line in file:
+        instance = json.loads(line)
+        data.append(instance.values())
+    return data
+
+def _create_profiler_logs_file(type, app, throughput, data):
+    header = []
+    if type == 'edge':
+        header = ['bandwidth', 'cepLatency', 'cpu', 'memory', 'rtt', 'timestamp']
+    else:
+        header = ['cpu', 'memory', 'timestamp']
+
+    with open(f'../results/formatted/profiler-{type}-{app}-{throughput}.csv', 'w') as f:
+        writer = csv.writer(f)
+        writer.writerow(header)
+        for d in data:
+            writer.writerow(d)
 
 def set_box_color(bp, color):
     plt.setp(bp['boxes'], color=color)
@@ -164,23 +164,25 @@ def set_box_color(bp, color):
 def get_application_data(app, metric, type="edge"):
     grouped_data = []
     files = glob.glob(f'../results/formatted/profiler-{type}-*.csv')
+    # print(files)
     for file in files:
         p = Path(file)
         df = pd.read_csv(p)
+        # print(df["cpu"].min)
         data = df[metric].to_list()
         grouped_data.append(data)
     return grouped_data
 
-def _create_boxplot_charts(metric, legend="", type="edge",):
-    ddos_128s_data = get_application_data("ddos-128s", metric)
+def _create_boxplot_charts(metric, legend="", type="edge"):
+    ddos_128s_data = get_application_data("ddos-128s", metric, type)
 
     ticks = ['250', '500', '750']
 
     # app1 = [[1,2,3,4,5], [1,2,3,4,5], [1,2,3,4,5]]
     app2 = [[1,2,3,4,5], [1,2,3,4,5], [1,2,3,4,5]]
 
-    boxplot_1 = plt.boxplot(app2, positions=np.array(range(len(app2)))*2.0-0.4, sym='', widths=0.6)
-    boxplot_2 = plt.boxplot(ddos_128s_data, positions=np.array(range(len(ddos_128s_data)))*2.0+0.4, sym='', widths=0.6)
+    boxplot_1 = plt.boxplot(app2, positions=np.array(range(len(app2)))*2.0-0.4, sym='', widths=0.6, showfliers=True)
+    boxplot_2 = plt.boxplot(ddos_128s_data, positions=np.array(range(len(ddos_128s_data)))*2.0+0.4, sym='', widths=0.6, showfliers=True)
 
     set_box_color(boxplot_1, '#D7191C') # colors are from http://colorbrewer2.org/
     set_box_color(boxplot_2, '#2C7BB6')
@@ -196,25 +198,25 @@ def _create_boxplot_charts(metric, legend="", type="edge",):
     plt.xlabel("Throughput (events/second)")
     plt.ylabel(legend)
     plt.tight_layout()
-    plt.savefig(f'{type}-{metric}.eps', format='eps')
+    plt.savefig(f'./images/{type}-{metric}.eps', format='eps')
     plt.clf()
 
-# group_staging_files_together(type="cloud")
+group_staging_files_together(type="cloud")
 
 ### Edge Graphs
 
 # _create_boxplot_charts("cpu", legend="CPU Usage (%)", type="edge")
 # _create_boxplot_charts("memory", legend="Memory Usage (%)", type="edge")
 # _create_boxplot_charts("bandwidth", legend="Network Bandwidth (Mbps)", type="edge")
-_create_boxplot_charts("cepLatency", legend="CEP Latency (Ms)", type="edge")
-_create_boxplot_charts("rtt", legend="Round-Trip Time (Ms)", type="edge")
+# _create_boxplot_charts("cepLatency", legend="CEP Latency (Ms)", type="edge")
+# _create_boxplot_charts("rtt", legend="Round-Trip Time (Ms)", type="edge")
 
 
 ### Cloud Grapths
 
-# _create_boxplot_charts("cpu", legend="CPU Usage (%)", type="edge")
-# _create_boxplot_charts("memory", legend="Memory Usage (%)", type="edge")
-# _create_boxplot_charts("bandwidth", legend="Network Bandwidth (Mbps)", type="edge")
+_create_boxplot_charts("cpu", legend="CPU Usage (%)", type="cloud")
+_create_boxplot_charts("memory", legend="Memory Usage (%)", type="cloud")
+# _create_boxplot_charts("bandwidth", legend="Network Bandwidth (Mbps)", type="cloud")
 
 # _process_profiler_logs("profiling_logs")
 # file = './nmon.csv'
