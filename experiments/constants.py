@@ -10,7 +10,9 @@ RAW_DATA_LOGS_OUTPUT_DIR = '/Users/jneto/msc/workspace/results/staging'
 CEP_APPLICATION_SIMPLE = 'ddos-10s'
 CEP_APPLICATION_COMPLEX = 'ddos-128s'
 
-APPLICATIONS = ['ddos-128s']
+MACHINE_LEARNING_ENABLED = True
+
+APPLICATIONS = ['ddos-10s']
 
 EXPERIMENT_EXECUTION_TIME = 30 # 30 minutes
 
