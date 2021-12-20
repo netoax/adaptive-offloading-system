@@ -195,7 +195,9 @@ def stop_and_get_logs(edgeClient, cloudClient, application, throughput, executio
     _stop_profiler(edgeClient)
     _stop_profiler(cloudClient)
     _stop_iperf(cloudClient)
-    _stop_analytics(edgeClient)
+
+    if not MACHINE_LEARNING_ENABLED:
+        _stop_analytics(edgeClient)
 
 # save to -> ../results/staging/:execution/:application/:throughput/file.txt
 def run_unit_execution(edgeClient, cloudClient, application, throughput, execution):
@@ -219,6 +221,8 @@ def start_experiment(edgeClient, cloudClient):
                 print('strategy: {}, throughput: {}, execution: {}'.format(s, f, i+1))
                 run_unit_execution(edgeClient, cloudClient, CEP_APPLICATION_COMPLEX, f, i+1)
                 # run_unit_execution(edgeClient, cloudClient, CEP_APPLICATION_SIMPLE, f, i+1)
+    if MACHINE_LEARNING_ENABLED:
+        _stop_analytics(edgeClient)
 
 edgeClient = start_ssh_connection(EDGE_NODE_HOSTNAME, EDGE_NODE_SSH_USERNAME)
 cloudClient = start_ssh_connection(CLOUD_NODE_HOSTNAME, CLOUD_NODE_SSH_USERNAME)
