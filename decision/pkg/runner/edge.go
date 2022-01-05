@@ -104,7 +104,7 @@ func (e *Edge) SetupSubscriptions() {
 }
 
 func (e *Edge) isModelHealth(context *PredictionContext) bool {
-	return context.Accuracy > 0.95 && context.Precision > 0.95 && context.Recall > 0.8
+	return context.Accuracy > 0.90 && context.Recall > 0.8
 }
 
 func (e *Edge) isOffloadable(status bool) bool {
