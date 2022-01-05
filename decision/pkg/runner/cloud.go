@@ -171,7 +171,7 @@ func (c *Cloud) SetApplication(topic, application string) {
 }
 
 func (c *Cloud) handleApplicationData(payload, topic string) {
-	fmt.Println(payload, topic)
+	// fmt.Println(payload, topic)
 	if !c.state.IsInProgress() {
 		log.Println("cloud: unabled to process data because there's no offload in progress")
 		return
