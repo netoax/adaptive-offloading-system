@@ -13,6 +13,7 @@ import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import glob
+import scipy.stats as st
 
 from analytics.init_logger import init_logger
 from analytics.models.metric import Measurement
@@ -96,10 +97,11 @@ def get_average_value_evaluation(model):
     dfs = []
 
     # for key in MAP_METRICS:
-    files = glob.glob('./model-results/*')
+    files = glob.glob('/Users/jneto/drive/experimentos/general/model-results/*')
     for file in files:
         # columns = MAP_METRICS[key]
         path = Path(file)
+        print(path)
         # print(path)
         df = pd.read_csv(path, skiprows=8, index_col=False).drop(['id'], axis='columns')
         # print(df.head())
@@ -218,29 +220,48 @@ def evaluate_models(dataset_file, output_file):
                                         restart_stream=True)
         evaluator.evaluate(stream, model=models, model_names=MODEL_NAMES)
 
+def force_knn_warm(stream, k=5, samples=1000):
+    knn = KNNClassifier(n_neighbors=k, max_window_size=2000, leaf_size=40)
+
+    n_samples = 0
+    corrects = 0
+
+    while n_samples < samples:
+        X, y = stream.next_sample()
+        my_pred = knn.predict(X)
+        if y[0] == my_pred[0]:
+            corrects += 1
+        knn = knn.partial_fit(X, y)
+        n_samples += 1
+
+    return knn
+
 def evaluate_knn_k_value(dataset_file):
     df = pd.read_csv(dataset_file, usecols=DATASET_COLUMNS)
     df = df.astype({'violated':int})
     print(df.head())
-    stream = DataStream(df, n_targets=1, target_idx=-1)
-    prequential = EvaluatePrequential(pretrain_size=500,
-                                    max_samples=5000,
+
+    prequential = EvaluatePrequential(pretrain_size=100,
+                                    max_samples=4000,
                                     show_plot=False,
                                     # metrics=['mean_square_error'],
                                     metrics=['accuracy'],
                                     n_wait=100,
                                     restart_stream=True)
 
-    holdout = EvaluateHoldout(max_samples=5000,
-                                max_time=1000,
-                                show_plot=False,
-                                metrics=['accuracy'],
-                                dynamic_test_set=True)
+    stream_2 = DataStream(df.tail(4000), n_targets=1, target_idx=-1)
 
-    for i in range(1,100):
+    # prequential_1.evaluate(stream, model=[KNNClassifier(n_neighbors=1)], model_names=['knn'])
+
+    # prequential_1.evaluate(stream_2, model=[knn], model_names=['knn'])
+
+
+    for i in range(1,15):
         print(f'Running k-value experiment for kNN classifier with n={i}')
+        stream = DataStream(df.head(1000), n_targets=1, target_idx=-1)
+        knn = force_knn_warm(stream, k=i, samples=1000)
         # evaluator.evaluate(stream, model=[KNNClassifier(n_neighbors=i)], model_names=['knn'])
-        holdout.evaluate(stream, model=[KNNClassifier(n_neighbors=i)], model_names=['knn'])
+        prequential.evaluate(stream_2, model=[knn], model_names=['knn'])
 
 def pairwise(data):
     return zip(data[::2], data[1::2])
@@ -272,6 +293,34 @@ def get_contingency_table(dataset_file):
         else:
             print('Different proportions of errors (reject H0)')
 
+def get_model_columns(model):
+    columns = []
+    for key in MAP_METRICS:
+        for value in MAP_METRICS[key]:
+            if value.find(f'[{model}]') != -1:
+                columns.append(value)
+    return columns
+
+def calculate_friedman_test(dataset_file):
+    models = ["HT", "EFDT", "KNN", "NB"]
+
+    # get_model_columns("HT")
+    # columns = [*MAP_METRICS['accuracy'], *MAP_METRICS['recall'], *MAP_METRICS['precision'], *MAP_METRICS['f1'], *MAP_METRICS['kappa']]
+    # data = pd.read_csv(dataset_file, skiprows=8, usecols=columns)
+
+    data = []
+
+    # for model in models:
+    #     df = pd.read_csv(dataset_file, skiprows=8, usecols=get_model_columns(model))
+    #     print(df.values)
+    #     data.append([df.values])
+
+    for key in MAP_METRICS:
+        if key != 'true_vs_predicted':
+            df = pd.read_csv(dataset_file, skiprows=8, usecols=MAP_METRICS[key])
+            # data = data.drop(['true_vs_predicted', 'id', 'true_value'], axis=1)
+            print(df.values)
+
 
 logger = init_logger(__name__, testing_mode=False)
 
@@ -286,8 +335,9 @@ publisher = MessagePublisher(mqtt)
 # generate_knn_chart()
 # evaluate_models('./random_data_labeled.csv', './evaluation_results.csv')
 # get_average_value_evaluation('ht')
-# evaluate_knn_k_value('./random_data_labeled.csv')
+evaluate_knn_k_value('./random_data_labeled.csv')
 # get_contingency_table('./evaluation_results.csv')
+# calculate_friedman_test('./evaluation_results.csv')
 # generate_evaluation_charts('accuracy', './results/ml')
 # generate_evaluation_charts('precision', './results/ml')
 # generate_evaluation_charts('recall', './results/ml')
