@@ -27,9 +27,10 @@ def signal_handler(sig, frame):
 
 signal.signal(signal.SIGINT, signal_handler)
 
+mqtt = MQTT()
+
 def main():
     # Basic dependencies
-    mqtt = MQTT()
     publisher = MessagePublisher(mqtt)
     subscriber = MessageSubscriber(mqtt)
     processor = Processor(subscriber, init_logger("stream-processor", testing_mode=False))
@@ -40,9 +41,7 @@ def main():
     else:
         start_analytics(publisher, processor, policy_manager)
 
-    mqtt.start()
     processor.start()
-    mqtt.loop_forever()
 
 def start_policy(processor, policy_manager):
     processor.on_measurement_instance(policy_manager.is_policy_violated)
@@ -73,4 +72,6 @@ def start_analytics(publisher, processor, policy_manager):
     classifier.on_classification(classification_result)
     drift_detector.on_drift_detected(drift_detected)
 
+mqtt.start()
 main()
+mqtt.loop_forever()

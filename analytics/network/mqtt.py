@@ -8,7 +8,10 @@ class MQTT():
 
     def start(self):
         self.client.on_connect = self.on_connected
-        # self.client.on_disconnect = self.on_disconnect
+        self.client.connect(self.hostname, self.port)
+        # self.loop_start()
+
+    def start_async(self):
         self.client.connect_async(self.hostname, self.port)
         self.loop_start()
 
@@ -22,7 +25,6 @@ class MQTT():
         self.client.loop_start()
 
     def on_connected(self, client, userdata, flags, rc):
-        # print("Connected to MQTT broker")
         pass
 
     def on_disconnected(self, client, userdata, flags, rc):

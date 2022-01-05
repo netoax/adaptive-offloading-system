@@ -50,7 +50,7 @@ class Trainer():
         self.__model.partial_fit(sample, [label])
         self.__logger.info("model trained with {}".format(label))
         self.__metrics.add_result(label, result)
-        print(self.__metrics)
+        # print(self.__metrics)
         self.__dict_metrics = {
             "f1-score": self.__metrics.get_f1_score(),
             "kappa": self.__metrics.get_kappa(),
