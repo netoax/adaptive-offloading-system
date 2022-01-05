@@ -60,7 +60,6 @@ def prof():
 
 @main.command()
 def stma():
-    print('a')
     pred()
 
 @main.command()

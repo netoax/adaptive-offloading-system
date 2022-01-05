@@ -2,10 +2,6 @@ import xml.dom.minidom
 import inspect
 import json
 
-from analytics.network.publisher import MessagePublisher
-from analytics.network.mqtt import MQTT
-from analytics.models.metric import Measurement
-
 class PolicyManager():
     def __init__(self, path, logger, publisher):
         self.doc = xml.dom.minidom.parse(path)
@@ -28,7 +24,7 @@ class PolicyManager():
                     "repetitions": int(policy.getAttribute("repetitions")) if policy.getAttribute("repetitions") else 1,
                     "count": 0
                 }
-                print(self.params)
+                # print(self.params)
 
     def is_policy_violated(self, measurement):
         status = {
@@ -58,7 +54,7 @@ class PolicyManager():
                     return True
 
                 self.params[key]['count'] += 1
-                print("count incremented: ", self.params[key]['count'])
+                # print("count incremented: ", self.params[key]['count'])
         return False
 
     def is_composed_violated(self, measurement):
@@ -70,17 +66,3 @@ class PolicyManager():
             else:
                 violation_control = False
         return violation_control
-
-# mqtt = MQTT(hostname="192.168.3.11", port=1883)
-# mqtt.start()
-# publisher = MessagePublisher(mqtt)
-# policy_manager = PolicyManager("/Users/jneto/msc/workspace/adaptive-offloading-system/analytics/policies.xml", None, publisher)
-# policy_manager.process()
-
-# m = Measurement(cpu=45)
-
-# result = policy_manager.is_policy_violated(m.to_dict())
-# result = policy_manager.is_policy_violated(m.to_dict())
-# result = policy_manager.is_policy_violated(m.to_dict())
-
-# print(result)

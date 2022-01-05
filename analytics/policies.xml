@@ -1,10 +1,10 @@
 <?xml version="1.0" encoding="UTF-8"?>
 
 <policies>
-    <policy name="cpu" value="40" type="simple" repetitions="4"/>
+    <policy name="cpu" value="80" type="simple" repetitions="4"/>
 
     <policy type="composed">
-        <rule name="cpu" value="60"/>
-        <rule name="memory" value="80"/>
+        <rule name="cpu" value="80"/>
+        <rule name="memory" value="70"/>
     </policy>
 </policies>
