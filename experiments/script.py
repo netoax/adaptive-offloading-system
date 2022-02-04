@@ -65,7 +65,7 @@ application_in_use = 'ddos-128s'
 # EXECUTION_MODE = os.environ.get('EXECUTION_MODE') || 'test'
 
 mqtt = MQTT(hostname=EDGE_NODE_HOSTNAME, port=1883)
-mqtt.start()
+mqtt.start_async()
 publisher = MessagePublisher(mqtt)
 subscriber = MessageSubscriber(mqtt)
 
@@ -210,7 +210,6 @@ def run_unit_execution(edgeClient, cloudClient, application, throughput, executi
     print('\tExtracting logs from nodes')
     stop_and_get_logs(edgeClient, cloudClient, application, throughput, execution)
     print('Done\n')
-
 
 def start_experiment(edgeClient, cloudClient):
     print('Running experiment: strategies x throughputs')

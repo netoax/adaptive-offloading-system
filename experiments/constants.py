@@ -1,7 +1,10 @@
 BOTNET_DATASET_USED_COLUMNS = ['stime', 'proto', 'saddr', 'sport', 'daddr', 'dport', 'bytes', 'state']
 BOTNET_DATASET_COLUMNS_DATA_TYPE = {'stime': float, 'proto': str, 'saddr': str, 'daddr': str, 'bytes': int, 'state': str}
+DATASET_COLUMNS = ['bandwidth', 'cpu', 'cepLatency', 'memory', 'violated']
+MODEL_NAMES = ['HT', 'EFDT', 'NB', 'KNN']
+METRICS = ['accuracy', 'kappa', 'precision', 'recall', 'f1', 'true_vs_predicted']
 
-DATA_THROUGHPUT_FACTORS = [250, 500, 750]
+DATA_THROUGHPUT_FACTORS = [250, 500, 750, 1000]
 NUMBER_OF_EVENTS_TO_PUBLISH = '100000'
 CHUNK_SIZE = 100000
 
@@ -25,7 +28,7 @@ FLINK_CLUSTER_DIR = './apache-flink/apache-flink-1.10.0'
 
 # SSH Connection
 
-EDGE_NODE_HOSTNAME = '192.168.3.11'
+EDGE_NODE_HOSTNAME = '192.168.3.37'
 EDGE_NODE_SSH_USERNAME = 'pi'
 EDGE_WORKDIR = '/home/pi/'
 EDGE_CEP_PORT = 8282

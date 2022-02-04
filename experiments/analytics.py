@@ -9,11 +9,14 @@ from skmultiflow.evaluation import EvaluatePrequential, EvaluateHoldout
 from skmultiflow.data import DataStream
 from matplotlib import pyplot as plt
 import matplotlib.ticker as mtick
+import matplotlib.dates as md
 import pandas as pd
 from datetime import datetime
 from pathlib import Path
 import glob
+import json
 import scipy.stats as st
+import seaborn as sns
 
 from analytics.init_logger import init_logger
 from analytics.models.metric import Measurement
@@ -26,16 +29,12 @@ from statsmodels.stats.contingency_tables import mcnemar
 
 from functools import reduce
 
-DATASET_COLUMNS = ['bandwidth', 'cpu', 'cepLatency', 'memory', 'violated']
-MODEL_NAMES = ['HT', 'EFDT', 'NB', 'KNN']
-METRICS = ['accuracy', 'kappa', 'precision', 'recall', 'f1', 'true_vs_predicted']
-
 ATTACK_MACHINES = ['192.168.100.149', '192.168.100.148','192.168.100.147','192.168.100.150']
 
 ht = HoeffdingTreeClassifier()
 efdt = ExtremelyFastDecisionTreeClassifier()
 nb = NaiveBayes()
-knn = KNNClassifier(n_neighbors=1)
+knn = KNNClassifier(n_neighbors=5)
 
 models = [ht, efdt, nb, knn]
 
@@ -70,12 +69,6 @@ def _is_data_normal():
 def get_metric_name(name):
     return name[name.find("[")+1:name.find("]")]
 
-def load_knn_k_data():
-    with open('./knn_k_accuracy_v2.txt') as file:
-        lines = file.readlines()
-        lines = [float(line.rstrip()) for line in lines]
-        return lines
-
 def generate_knn_chart():
     values = load_knn_k_data()
     new_list = [ round(x*100,2) for x in values]
@@ -93,11 +86,17 @@ def generate_knn_chart():
     plt.ylabel("Accuracy (%)")
     plt.savefig('knn_k_values.eps', format='eps') # TODO: improve quality
 
+def load_knn_k_data():
+    with open('./knn_k_accuracy_v2.txt') as file:
+        lines = file.readlines()
+        lines = [float(line.rstrip()) for line in lines]
+        return lines
+
 def get_average_value_evaluation(model):
     dfs = []
 
     # for key in MAP_METRICS:
-    files = glob.glob('/Users/jneto/drive/experimentos/general/model-results/*')
+    files = glob.glob('/Users/jneto/msc/workspace/adaptive-offloading-system/model-results/*')
     for file in files:
         # columns = MAP_METRICS[key]
         path = Path(file)
@@ -113,13 +112,11 @@ def get_average_value_evaluation(model):
     # print(len(dfs))
     result_1 = pd.concat(dfs)
 
-    print(result_1.mean())
+    # print(result_1.mean())
 
     # for key in MAP_METRICS
 
-
-
-    # result_1.to_csv('./combined_evaluation.csv')
+    result_1.to_csv('./combined_evaluation_v2.csv')
 
 def generate_evaluation_charts(metric, output):
     columns = ['id'] + MAP_METRICS[metric]
@@ -193,13 +190,8 @@ def prepare_dataset_2():
 def label_dataset_columns(policy_manager, dataset_file):
     df = pd.read_csv(dataset_file)
     for index, row in df.iterrows():
-        # print(row)
         measurement = Measurement(row['cepLatency'], row['cpu'], row['memory'], row['bandwidth'])
-        # print(measurement)
-        # violated = policy_manager.is_composed_violated(measurement.to_dict()) or policy_manager.is_simple_violated(measurement.to_dict())
         violated = policy_manager.is_policy_violated(measurement.to_dict())
-        print(violated, measurement.to_dict())
-        # df['violated'] = int(violated)
         df.loc[index, 'violated'] = int(violated)
     df.to_csv('./random_data_labeled.csv', index=False)
 
@@ -208,7 +200,7 @@ def evaluate_models(dataset_file, output_file):
     df = df.astype({'violated':int})
     stream = DataStream(df, n_targets=1, target_idx=-1)
 
-    for i in range(30):
+    for i in range(10):
         print(f'Running model evaluation, execution={i}')
         now = datetime.now()
         evaluator = EvaluatePrequential(max_samples=5000,
@@ -267,10 +259,10 @@ def pairwise(data):
     return zip(data[::2], data[1::2])
 
 def get_contingency_table(dataset_file):
-    ctg = [[0,0],
-           [0,0]]
+    data = pd.read_csv(dataset_file, usecols=MAP_METRICS['true_vs_predicted'] + ['id'])
+    # data = pd.read_csv(dataset_file, skiprows=8, usecols=MAP_METRICS['true_vs_predicted'] + ['id'])
+    # print(data.head())
 
-    data = pd.read_csv(dataset_file, skiprows=8, usecols=MAP_METRICS['true_vs_predicted'] + ['id'])
     print(data.head())
 
     for pair in PAIRWISE_TEST:
@@ -278,12 +270,16 @@ def get_contingency_table(dataset_file):
         model_1 = data[MAP_MODELS[pair[0]]] == data['true_value']
         model_2 = data[MAP_MODELS[pair[1]]] == data['true_value']
 
+        # print(model_1, model_2)
+
         data_crosstab = pd.crosstab(model_1,
                                     model_2,
                                     margins = False)
+
         print(data_crosstab)
 
         result = mcnemar(data_crosstab, exact=True)
+        # print(result)
         # summarize the finding
         print('statistic=%.3f, p-value=%.3f' % (result.statistic, result.pvalue))
         # interpret the p-value
@@ -301,26 +297,6 @@ def get_model_columns(model):
                 columns.append(value)
     return columns
 
-def calculate_friedman_test(dataset_file):
-    models = ["HT", "EFDT", "KNN", "NB"]
-
-    # get_model_columns("HT")
-    # columns = [*MAP_METRICS['accuracy'], *MAP_METRICS['recall'], *MAP_METRICS['precision'], *MAP_METRICS['f1'], *MAP_METRICS['kappa']]
-    # data = pd.read_csv(dataset_file, skiprows=8, usecols=columns)
-
-    data = []
-
-    # for model in models:
-    #     df = pd.read_csv(dataset_file, skiprows=8, usecols=get_model_columns(model))
-    #     print(df.values)
-    #     data.append([df.values])
-
-    for key in MAP_METRICS:
-        if key != 'true_vs_predicted':
-            df = pd.read_csv(dataset_file, skiprows=8, usecols=MAP_METRICS[key])
-            # data = data.drop(['true_vs_predicted', 'id', 'true_value'], axis=1)
-            print(df.values)
-
 
 logger = init_logger(__name__, testing_mode=False)
 
@@ -328,14 +304,163 @@ mqtt = MQTT(hostname="localhost", port=1883)
 mqtt.start()
 publisher = MessagePublisher(mqtt)
 
+def _prepare_profiler_logs(type):
+    files = glob.glob("{}/{}:profiler*.txt".format(RESULTS_PATH, type))
+    data = []
+    for file in files:
+        p = Path(file)
+        data = _get_profiler_logs(type, p.stem, data)
+
+    _create_profiler_logs_file(type, data)
+
+def get_perf_data(strategy, number, application, throughput):
+    data = []
+    # file = open('/Users/jneto/drive/experimentos/policy/ddos-128s/service-logs/28/ddos-128s/750/edge:profiler:28:2021-11-2323:39:56.795306.txt')
+
+    if strategy == 'concept-drift':
+        files = glob.glob(f'/Users/jneto/drive/experimentos/concept-drift/ddos-10s-128s/{number}/{application}/{throughput}/edge:profiler:*')
+    else:
+        print(strategy, number, application, throughput)
+        path = f'/Users/jneto/drive/experimentos/{strategy}/{application}/service-logs/{number}/{application}/{throughput}/edge:profiler:*'
+        print(path)
+        files = glob.glob(path)
+
+    for file in files:
+        p = Path(file)
+        file = open(p)
+        next(file)
+        for line in file:
+            instance = json.loads(line)
+            data.append(instance.values())
+
+    return data
+
+def matplot_perf_charts(x, y):
+    fig, ax = plt.subplots()
+
+    ax.plot(df_policy['timestamp'], df_policy['cpu'])
+    ax.plot(df_ml['timestamp'], df_ml['cpu'])
+
+    # ax.plot(range(1, 501), new_list[:500], label='Accuracy')
+    # ax.yaxis.set_major_formatter(mtick.PercentFormatter(1))
+    ax.yaxis.set_major_locator(plt.MaxNLocator(10))
+    # ax.invert_yaxis()
+
+    # plt.gca().yaxis.set_major_formatter(plt.FuncFormatter('{:.0f}%'.format))
+    ax.grid(True)
+    plt.title("Best k value for kNN classifier")
+    plt.xlabel("Number of instances")
+    plt.ylabel("Accuracy (%)")
+    plt.show()
+
+def list_of_timestamps():
+    return (pd.DataFrame(columns=['NULL'],
+                  index=pd.date_range('2021-11-25T12:00:00Z', '2021-11-25T12:31:00Z',
+                                      freq='20S'))
+    #    .between_time('07:00','21:00')
+       .index.strftime('%H:%M:%S')
+       .tolist()
+    )
+
+def seaborn_perf_charts(data1, data2, name_output):
+    # prepare data
+    timestamps = list_of_timestamps()
+
+    d1 = data1.head(94)
+    d1.loc[:,'timepoint'] = timestamps
+    # d1.loc[:,'strategy'] = 'Policy-based'
+
+    d2 = data2.head(94)
+    d2.loc[:,'timepoint'] = timestamps
+    # d2.loc[:,'strategy'] = 'ML-enhanced'
+
+    data = d1.append(d2)
+    data.reset_index(inplace=True)
+    print(data.info())
+
+
+    data['timepoint'] = pd.to_datetime(data['timepoint'], format = '%H:%M:%S')
+
+    fig = plt.figure()
+    fmri = sns.load_dataset("fmri")
+    sns.set_theme(style="whitegrid")
+    fig.ax = sns.lineplot(
+        data=data,
+        x="timepoint", y="cpu", hue="strategy",
+        markers=True, dashes=False
+    )
+    fig.ax.yaxis.grid(True)
+
+    plt.ylabel("CPU Usage (%)")
+    plt.xlabel("Timestamp")
+
+    # specify the position of the major ticks at the beginning of the week
+    # plt.ax.xaxis.set_major_locator(md.WeekdayLocator(byweekday = 1))
+    # specify the format of the labels as 'year-month-day'
+    fig.ax.xaxis.set_major_formatter(md.DateFormatter('%H:%M:%S'))
+    # (optional) rotate by 90° the labels in order to improve their spacing
+    # plt.setp(fig.ax.xaxis.get_majorticklabels(), rotation = 90)
+
+    # fig.ax.tick_params(axis = 'x', which = 'major', length = 10)
+    fig.ax.tick_params(axis = 'x', which = 'minor', length = 1)
+
+    plt.savefig(name_output, format='eps')
+    # plt.show()
+
+def generate_perf_chats(strategy, number, application, throughput):
+    # values = load_knn_k_data()
+    # df = pd.read_csv('/drive/experimentos/policy/csv-files/profiler-edge-ddos-128s-750.csv', skiprows=8, index_col=False).drop(['id'], axis='columns')
+    # new_list = [ round(x*100,2) for x in values]
+    # print(values[:30])
+
+    policy = get_perf_data('policy', number, application, throughput)
+    df_policy = pd.DataFrame.from_records(policy, columns=["bandwidth", "cepLatency", "cpu", "memory", "rtt", "timestamp"])
+    df_policy.loc[:,'strategy'] = 'Policy-based'
+
+    if strategy == 'ml':
+        online_learning = get_perf_data('online-learning', number, application, throughput)
+        df_ml = pd.DataFrame.from_records(online_learning, columns=["bandwidth", "cepLatency", "cpu", "memory", "rtt", "timestamp"])
+        df_ml.loc[:,'strategy'] = 'ML-enhanced'
+        seaborn_perf_charts(df_policy, df_ml, f'{strategy}-{number}-{application}-{throughput}.eps')
+        return
+
+    online_learning = get_perf_data('concept-drift', number, application, throughput)
+    df_ml = pd.DataFrame.from_records(online_learning, columns=["bandwidth", "cepLatency", "cpu", "memory", "rtt", "timestamp"])
+    df_ml.loc[:,'strategy'] = 'Drift-enhanced'
+    seaborn_perf_charts(df_policy, df_ml, f'{strategy}-{number}-{application}-{throughput}.eps')
+
+    # plt.savefig('knn_k_values.eps', format='eps') # TODO: improve quality
+
 # policy_manager = PolicyManager('./analytics/policies.xml', logger, publisher)
 # policy_manager.process()
 # label_dataset_columns(policy_manager, '~/drive/experimentos/policy/csv-files/combined_csv.csv')
 
+# generate_perf_chats('26', 'concept-drift')
+
+number = 29
+
+# generate_perf_chats('ml', number, 'ddos-128s', '250')
+# generate_perf_chats('ml', number, 'ddos-128s', '500')
+# generate_perf_chats('ml', number, 'ddos-128s', '750')
+# generate_perf_chats('ml', number, 'ddos-10s', '250')
+# generate_perf_chats('ml', 9, 'ddos-10s', '500')
+# generate_perf_chats('ml', number, 'ddos-10s', '750')
+
+# generate_perf_chats('concept-drift', number, 'ddos-128s', '250')
+# generate_perf_chats('concept-drift', number, 'ddos-128s', '500')
+# generate_perf_chats('concept-drift', number, 'ddos-128s', '750')
+# generate_perf_chats('concept-drift', number, 'ddos-10s', '250')
+# generate_perf_chats('concept-drift', 9, 'ddos-10s', '500')
+# generate_perf_chats('concept-drift', number, 'ddos-10s', '750')
+
+
+# get_perf_data()
+
 # generate_knn_chart()
 # evaluate_models('./random_data_labeled.csv', './evaluation_results.csv')
 # get_average_value_evaluation('ht')
-evaluate_knn_k_value('./random_data_labeled.csv')
+# evaluate_knn_k_value('./random_data_labeled.csv')
+# get_contingency_table('./last_model_result_v2.csv')
 # get_contingency_table('./evaluation_results.csv')
 # calculate_friedman_test('./evaluation_results.csv')
 # generate_evaluation_charts('accuracy', './results/ml')
