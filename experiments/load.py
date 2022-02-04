@@ -19,13 +19,25 @@ from experiments.constants import *
 
 SLEEP_INTERVAL_SECONDS = 80
 
-def run_load_experiment(client, mqtt, publisher, subscriber, application, hostname, workdir):
+mqtt = MQTT(hostname=EDGE_NODE_HOSTNAME, port=1883)
+mqtt.start_async()
+publisher = MessagePublisher(mqtt)
+subscriber = MessageSubscriber(mqtt)
+
+def _start_edge_profiler(client, execution_number):
+    filename = 'edge:profiler:{}:{}.txt'.format(execution_number, datetime.now()).replace(" ", "")
+    cmd = 'export $(cat ./profiler.env) && ./profiler > {} 2>&1 &'.format(filename)
+    stdin, stdout, stderr = client.exec_command(cmd)
+    return filename
+
+def run_load_experiment(client, publisher, subscriber, application, hostname, workdir):
     print('loading test:', application)
     start_nmon(client)
     # mqtt.start()
 
     for factor in DATA_THROUGHPUT_FACTORS:
         sleep(10)
+        # _start_edge_profiler(client, factor)
         start_cep_application(client, application)
         sleep(SLEEP_INTERVAL_SECONDS)
         n1 = get_number_of_starts_cep(client)
@@ -40,7 +52,8 @@ def run_load_experiment(client, mqtt, publisher, subscriber, application, hostna
 
         stop_cep_application(client, application)
         sleep(15)
-        kill_application(client, 'nmon')
+        get_logs(client, workdir, '*.txt', RAW_DATA_LOGS_OUTPUT_DIR)
+        kill_application(client, 'profiler')
 
         print('\trestarts: ', n2 - n1)
         print('\n')
@@ -50,17 +63,8 @@ def run_load_experiment(client, mqtt, publisher, subscriber, application, hostna
 def run_node_execution(node, info):
     print('target:', node)
     ssh = start_ssh_connection(info['hostname'], info['username'])
-    mqtt_pub = MQTT(hostname=info['hostname'], port=1883)
-    mqtt_sub = MQTT(hostname=info['hostname'], port=1883)
-
-    mqtt_pub.start()
-    mqtt_sub.start()
-
-    publisher = MessagePublisher(mqtt_pub)
-    subscriber = MessageSubscriber(mqtt_sub)
-
     # run_load_experiment(ssh, mqtt_sub, publisher, subscriber, CEP_APPLICATION_COMPLEX, info['hostname'], info['workdir'])
-    run_load_experiment(ssh, mqtt_sub, publisher, subscriber, CEP_APPLICATION_SIMPLE, info['hostname'], info['workdir'])
+    run_load_experiment(ssh, publisher, subscriber, CEP_APPLICATION_SIMPLE, info['hostname'], info['workdir'])
 
 def start_experiment():
     for node in LOAD_EXPERIMENTS_NODES:

@@ -31,7 +31,6 @@ knn = KNNClassifier()
 
 RESULTS_PATH = "../../results/staging/ddos-10s"
 
-
 def _prepare_profiler_logs(type):
     files = glob.glob("{}/{}:profiler*.txt".format(RESULTS_PATH, type))
     data = []
@@ -40,61 +39,6 @@ def _prepare_profiler_logs(type):
         data = _get_profiler_logs(type, p.stem, data)
 
     _create_profiler_logs_file(type, data)
-    # return data
-
-
-# type = p.stem[:p.stem.index(":")]
-# _process_profiler_logs(type, p.stem)
-# _generate_line_chart_timestamp(p.stem, 'cpu', './results/images/{}'.format(type), type)
-# _generate_line_chart_timestamp(p.stem, 'memory', './results/images/{}'.format(type), type)
-
-
-def statistical_tests(data):
-    k2, p = st.normaltest(data)
-    alpha = 1e-3
-    print(k2, p)
-    if p < alpha:
-        print("The null hypothesis can be rejected")
-    else:
-        print("The null hypothesis cannot be rejected")
-
-
-def _label_columns():
-    df = pd.read_csv("./analytics/random_data_test.csv")
-    for index, row in df.iterrows():
-        # print(row)
-        measurement = Measurement(
-            row["cepLatency"], row["cpu"], row["memory"], row["bandwidth"]
-        )
-        # print(measurement)
-        policy_manager.process()
-        violated = policy_manager.is_composed_violated(
-            measurement.to_dict()
-        ) or policy_manager.is_simple_violated(measurement.to_dict())
-        # df['violated'] = int(violated)
-        df.loc[index, "violated"] = int(violated)
-    df.to_csv("./random_data_labeled.csv", index=False)
-
-
-def _generate_line_chart_timestamp(file, metric, output, type):
-    data = pd.read_csv(
-        "./results/formatted/{}/{}.csv".format(type, file),
-        parse_dates=True,
-        usecols=[metric, "timestamp"],
-    )
-    data.timestamp = pd.to_datetime(data.timestamp)
-    date = data["timestamp"].dt.strftime("%H:%M:%S")
-    memory = data[metric]
-    plot = _create_plot(date, memory, "timestamp", metric, title="aaaa")
-
-
-def _setup_multiple_plots(ax, xaxis, yaxis, xlabel, ylabels):
-    # print(xaxis, yaxis.head())
-    for label in ylabels:
-        print(yaxis[label])
-        ax.plot(xaxis, yaxis[label], label=label)
-        ax.legend()
-    return ax
 
 
 def _create_plot(
@@ -118,6 +62,13 @@ def _create_plot(
 
     return plt
 
+def _setup_multiple_plots(ax, xaxis, yaxis, xlabel, ylabels):
+    # print(xaxis, yaxis.head())
+    for label in ylabels:
+        print(yaxis[label])
+        ax.plot(xaxis, yaxis[label], label=label)
+        ax.legend()
+    return ax
 
 def _save_plot_to_figure(plt, filename):
     plt.savefig("{}.eps".format(filename), format="eps")
@@ -157,21 +108,57 @@ def process_staging_files():
             p.stem, "memory", "./results/images/{}".format(type), type
         )
 
+def _generate_line_chart_timestamp(file, metric, output, type):
+    data = pd.read_csv(
+        "./results/formatted/{}/{}.csv".format(type, file),
+        parse_dates=True,
+        usecols=[metric, "timestamp"],
+    )
+    data.timestamp = pd.to_datetime(data.timestamp)
+    date = data["timestamp"].dt.strftime("%H:%M:%S")
+    memory = data[metric]
+    plot = _create_plot(date, memory, "timestamp", metric, title="aaaa")
 
 def group_staging_files_together(category, application, type="edge"):
     data = []
-    for t in [250, 500, 750]:
-        for i in range(1, 31):
-            # print(f'./results/staging/{i}/{app}/{t}/{type}:profiler*')
-            files = glob.glob(
-                f"/Users/jneto/drive/experimentos/{category}/{application}/service-logs/{i}/{application}/{t}/{type}:profiler:*.txt"
-            )
-            print(files)
-            for file in files:
-                p = Path(file)
-                _get_profiler_logs(p, data)
-        _create_profiler_logs_file(type, application, t, data)
-        data = []
+
+    drift = {
+        'ddos-10s': '750',
+        'ddos-128s': '250'
+    }
+
+    if category == 'concept-drift':
+        for application, throughput in drift.items():
+            for i in range(1, 31):
+                files = glob.glob(
+                    f"/Users/jneto/drive/experimentos/{category}/ddos-10s-128s/{i}/{application}/{throughput}/{type}:profiler:*.txt"
+                )
+
+                # print(files)
+
+                for file in files:
+                    p = Path(file)
+                    _get_profiler_logs(p, data)
+            _create_profiler_logs_file(type, application, throughput, data)
+            data = []
+
+        return
+
+    # for t in [250, 500, 750]:
+    #     for i in range(1, 31):
+    #         # print(f'./results/staging/{i}/{app}/{t}/{type}:profiler*')
+    #         # files = glob.glob(
+    #         #     f"/Users/jneto/drive/experimentos/{category}/{application}/service-logs/{i}/{application}/{t}/{type}:profiler:*.txt"
+    #         # )
+    #         files = glob.glob(
+    #             f"/Users/jneto/drive/experimentos/{category}/{application}/service-logs/{i}/{application}/{t}/{type}:profiler:*.txt"
+    #         )
+    #         print(files)
+    #         for file in files:
+    #             p = Path(file)
+    #             _get_profiler_logs(p, data)
+    #     _create_profiler_logs_file(type, application, t, data)
+    #     data = []
 
 
 # ~/drive/experimentos/policy/csv-files/profiler-edge-ddos-128s-500.csv'
@@ -316,6 +303,35 @@ def _create_boxplot_charts(category, metric, legend="", type="edge"):
     plt.clf()
     # plt.show()
 
+def _create_drift_boxplot_charts(metric, legend="", type="edge", category="concept-drift", ):
+    ddos_128s_data = get_application_data(category, "ddos-128s", metric, type)
+    ddos_10s_data = get_application_data(category, "ddos-10s", metric, type)
+
+    data_10s = {
+        '750': ddos_10s_data[0]
+    }
+
+    data_128s = {
+        '250': ddos_128s_data[0]
+    }
+
+    df_10s = get_long_form_df(data_10s, "ddos-10s", metric)
+    df_128s = get_long_form_df(data_128s, "ddos-128s", metric)
+    fig = plt.figure()
+    sns.set_theme(style="whitegrid")
+    fig.ax = sns.boxplot(x="throughput", hue="application", y=metric, width=0.7, data=pd.concat([df_128s, df_10s]))
+
+    plt.xlabel("Throughput (events/second)")
+    plt.ylabel(legend)
+    plt.xlim(-1, 3)
+    # fig.ax.set_aspect(-2)
+    # plt.xticks(range(0, 3 * 2, 2), ["250", "500", "750"])
+    adjust_box_widths(fig, 0.7)
+    plt.tight_layout()
+    plt.savefig(f'./images/{category}-{type}-{metric}.eps', format='eps')
+    plt.clf()
+    # plt.show()
+
 def create_data_histogram(category, metric, legend="", type="edge"):
     ddos_128s_data = get_application_data(category, "ddos-128s", metric, type)
     # ddos_10s_data = get_application_data(category, "ddos-10s", metric, type)
@@ -338,12 +354,14 @@ def create_data_histogram(category, metric, legend="", type="edge"):
     plt.xlabel('Data');
     plt.show();
 
-def is_json(myjson):
-    try:
-        json.loads(myjson)
-    except ValueError as e:
-        return False
-    return True
+def statistical_tests(data):
+    k2, p = st.normaltest(data)
+    alpha = 1e-3
+    print(k2, p)
+    if p < alpha:
+        print("The null hypothesis can be rejected")
+    else:
+        print("The null hypothesis cannot be rejected")
 
 def _get_execution_output_logs(category, application):
     df = pd.DataFrame(columns=['response_time', 'timestamp'])
@@ -392,6 +410,51 @@ def _calculate_p_values(application='', type='edge'):
             _get_mannwhitneyu_info(data1, data2)
         # print(strategies[i], throughputs[i])
 
+def _calculate_drift_p_values(type='edge'):
+    drift = {
+        'ddos-10s': '750',
+        'ddos-128s': '250'
+    }
+
+    rel = {
+        '250': 0,
+        '750': 2
+    }
+
+    metrics = ['cpu', 'memory']
+
+    if type == 'edge':
+        metrics.append('bandwidth')
+
+    for k, v in drift.items():
+        for metric in metrics:
+            drift_data = get_application_data('concept-drift', k, metric, type)
+            ml_data = get_application_data('online-learning', k, metric, type)
+
+            print(f'\nstatistic info for: ({metric}) {type} {v} | {k}')
+            _get_mannwhitneyu_info(drift_data[0], ml_data[rel[v]])
+
+def _get_concept_drift_info(metric, type):
+    # ddos_10s_data = get_application_data('concept-drift', "ddos-10s", metric, type)
+    # ddos_128s_data = get_application_data('concept-drift', "ddos-128s", metric, type)
+
+    drift = {
+        'ddos-10s': '750',
+        'ddos-128s': '250'
+    }
+
+    for k, v in drift.items():
+        data = get_application_data('concept-drift', k, metric, type)
+        print(f'\nstatistic info for: {v} - {metric} - {type} | concept-drift - {k}')
+        print('std deviation: ', np.std(data))
+        print('mean: ', np.mean(data))
+        print('min: ', np.min(data))
+        print('max: ', np.max(data))
+        _get_shapiro_normality_info(data)
+
+    # print(ddos_128s_data)
+    # print(ddos_10s_data)
+
 def _get_statistics_info(category, metric, type):
     ddos_128s_data = get_application_data(category, "ddos-128s", metric, type)
     ddos_10s_data = get_application_data(category, "ddos-10s", metric, type)
@@ -437,12 +500,24 @@ def _get_all_statistic_info():
     _get_statistics_info("online-learning", "cpu", type="cloud")
     _get_statistics_info("online-learning", "memory", type="cloud")
 
+# _get_concept_drift_info("cpu", "edge")
+# _get_concept_drift_info("memory", "edge")
+# _get_concept_drift_info("cepLatency", "edge")
+# _get_concept_drift_info("rtt", "edge")
+# _get_concept_drift_info("bandwidth", "edge")
 
-_calculate_p_values('ddos-10s')
-_calculate_p_values('ddos-128s')
 
-_calculate_p_values('ddos-10s', 'cloud')
-_calculate_p_values('ddos-128s', 'cloud')
+# _get_concept_drift_info("cpu", "cloud")
+# _get_concept_drift_info("memory", "cloud")
+
+# _calculate_drift_p_values()
+
+
+# _calculate_p_values('ddos-10s')
+# _calculate_p_values('ddos-128s')
+
+# _calculate_p_values('ddos-10s', 'cloud')
+# _calculate_p_values('ddos-128s', 'cloud')
 
 # _get_all_statistic_info()
 # group_all_profiling_data('/Users/jneto/drive/experimentos/policy/csv-files')
@@ -452,6 +527,10 @@ _calculate_p_values('ddos-128s', 'cloud')
 
 # group_staging_files_together('online-learning', 'ddos-10s', type="edge")
 # group_staging_files_together('online-learning', 'ddos-10s', type="cloud")
+
+# group_staging_files_together('concept-drift', 'ddos-10s', type="edge")
+# group_staging_files_together('concept-drift', 'ddos-10s', type="cloud")
+
 
 ### ******** Policy Based Mechanism ***********
 
@@ -484,6 +563,31 @@ _calculate_p_values('ddos-128s', 'cloud')
 
 # _create_boxplot_charts("online-learning", "cpu", legend="CPU Usage (%)", type="cloud")
 # _create_boxplot_charts("online-learning", "memory", legend="Memory Usage (%)", type="cloud")
+
+# create_data_histogram("online-learning", "memory", legend="Memory Usage (%)", type="edge")
+# create_data_histogram("online-learning", "cpu", legend="COU Usage (%)", type="edge")
+
+### ******** Drift-enhanced Mechanism ***********
+
+_create_drift_boxplot_charts("cpu", legend="CPU Usage (%)", type="edge")
+_create_drift_boxplot_charts("memory", legend="Memory Usage (%)", type="edge")
+_create_drift_boxplot_charts("bandwidth", legend="Network Bandwidth (Mbps)", type="edge")
+_create_drift_boxplot_charts("cepLatency", legend="CEP Latency (Ms)", type="edge")
+_create_drift_boxplot_charts("rtt", legend="Round-Trip Time (Ms)", type="edge")
+
+_create_drift_boxplot_charts("cpu", legend="CPU Usage (%)", type="cloud")
+_create_drift_boxplot_charts("memory", legend="Memory Usage (%)", type="cloud")
+
+
+# _create_boxplot_charts("concept-drift", "memory", legend="Memory Usage (%)", type="edge")
+# _create_boxplot_charts("concept-drift", "bandwidth", legend="Network Bandwidth (Mbps)", type="edge")
+# _create_boxplot_charts("concept-drift", "cepLatency", legend="CEP Latency (Ms)", type="edge")
+# _create_boxplot_charts("concept-drift", "rtt", legend="Round-Trip Time (Ms)", type="edge")
+
+## Cloud Grapths
+
+# _create_boxplot_charts("concept-drift", "cpu", legend="CPU Usage (%)", type="cloud")
+# _create_boxplot_charts("concept-drift", "memory", legend="Memory Usage (%)", type="cloud")
 
 # create_data_histogram("online-learning", "memory", legend="Memory Usage (%)", type="edge")
 # create_data_histogram("online-learning", "cpu", legend="COU Usage (%)", type="edge")
